@@ -1,0 +1,2 @@
+#!/bin/bash
+egrep -o "[0-9]{4,5}\.[0-9][0-9][a-z]c\s" * |cut -d: -f2|cut -d. -f1| sort | uniq

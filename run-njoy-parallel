@@ -1,0 +1,404 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: run-njoy-parallel
+#
+# USAGE: run-njoy-parallel  INPUT-LIST  [options]
+#
+# DESCRIPTION: run NJOY calculations in parallel using different ENDF-6 files.
+#
+# OPTIONS: see 'USAGE' below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 08.12.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
+export TMPFOLD=$(realpath ".temp.xsdir")
+CODE=$(basename "$0") 
+USAGE="
+DESCRIPTION
+-----------
+Run NJOY calculations in parallel for different ENDF-6 files.
+
+
+USAGE
+-----
+
+$CODE  INPUT-LIST  [options]
+
+
+
+POSITIONAL ARGUMENTS
+--------------------
+
+INPUT-LIST                  * if INPUT-LIST is a text file:
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                              it must contain a list of all the ENDF-6 files (ABSOLUTE path) 
+                              that must be processed (one file per line).
+
+                              e.g. file.txt:
+                                   /path/to/file-1.endf6 
+                                   /path/to/file-2.endf6 
+                                   /path/to/file-3.endf6 
+
+                              To create such a file one could make use of the bash command:
+
+                                find  \$(pwd)  -maxdepth 1  -name \"pattern\"  -type f  -o  -type l
+
+                            * if INPUT-LIST is a directory:
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                              all the files contained in the selected directory are processed.
+
+                            * if INPUT-LIST is not given:
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                              an interactive command line interface will guide the user in 
+                              creating the list of ENDF-6 files to be processed.
+
+
+
+OPTIONAL ARGUMENTS
+------------------
+
+-h| --help                  Print the help text.
+
+--joblog  JOBLOG            Set the log file for GNU parallel
+                            (default is 'out.log')
+
+-n|--max-jobs   NJOBS       Set the maximum number of jobs that will be run in parallel by GNU parallel
+                            (default is 28)
+
+--dryrun                    Show what commands will be run without running them.
+
+--ace-only                  Run NJOY only for the production of the ACE files.
+
+--xsdir  XSDIR              If this option is given, generate a xsdir file using the
+                            information obtained from the NJOY runs.
+                            It is mandatory that a template xsdir file (XSDIR) be given, 
+                            containing in order:
+
+                               * the datapath, of the type:
+
+                                   DATAPATH=/path/to/ace/files 
+
+                                 Notice that 1) the word \"datapath\" is case insensitivei and only present
+                                 in the first line of XSDIR, 2) a \"=\" sign must separate \"datapath\" 
+                                 from the actual directory path.
+
+                               * the atomic weight ratios section.
+
+                               * the word \"directory\".
+
+                            The ace files produced by NJOY are copied to the datapath.
+
+--relative-route  RROUTE    Not tested yet.
+
+--tmp  N  TMP_1,...,TMP_N   To be developed (at the moment files are processed at room temperature).
+
+--suffix  SUFFIX            A suffix can be given for each ACE file.
+
+                            e.g. if suffix \"-JEFF3.3\" is given, then file \"abc.ace\" will be called
+                                 \"abc-JEFF3.3.ace\".
+
+--run-njoy  RUNNJOY         (DEVELOPER'S OPTION ONLY) set a different script \"run-njoy\".
+                            If this option is not used, file \"run-njoy\" is looked for 
+                            in the directory of this script, else in the PATH.
+
+
+
+EXTRA
+-----
+
+ * Files are currently processed only at room temperature.
+
+
+EXAMPLES
+--------
+
+1) run-njoy-parallel  input.list  --ace-only
+
+   Run NJOY sequence (up to ACER) in parallel for all the files contained in \"input.list\".
+
+
+2) run-njoy-parallel  input.list  --ace-only  --xsdir file.xsdir
+
+   Run script as in example 1) and create xsdir file using template file \"file.xsdir\".
+"
+
+###########################################################
+# Setup input options by parsing the command line arguments
+###########################################################
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+    -h|--help)
+    echo -e "$USAGE"
+    exit 0
+    ;;
+    -i|--input-list)
+    INPUT_LIST="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --joblog)
+    JOBLOG="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -n|--max-jobs)
+    NJOBS="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --dryrun)
+    DRYRUN="--dryrun"
+    shift # past argument
+    ;;
+    --ace-only)
+    export ACEONLY="--ace-only"
+    shift # past argument
+    ;;
+    --xsdir)
+    XSDIR=$(realpath "$2")
+    shift # past argument
+    shift # past value
+    ;;
+    --relative-route)
+    export RROUTE="$2/"
+    shift # past argument
+    shift # past value
+    ;;
+    --suffix)
+    export SUFFIX="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --run-njoy)
+    export RUNNJOY="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          PROCESS INPUTS                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get run-njoy from command line if given,
+# otherwise search for it in script folder.
+# Otherwise search for it in PATH.
+# If not present, exit with ERROR.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -x $RUNNJOY ]] || export RUNNJOY=$(find "$SCRIPTDIR" -name "run-njoy" -type f )
+[[ -x $RUNNJOY ]] || export RUNNJOY=$(which run-njoy)
+[[ -x $RUNNJOY ]] || {>&2 echo -e "ERROR: could not find executable file 'run-njoy'"; exit 1;}
+RUNNJOY="$(realpath $RUNNJOY)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Check if mandatory inputs are present:
+#   - INPUT_LIST
+# If not, get the input files from the command line and save
+# them in a file "input.list".
+# If INPUT_LIST is a directory, create a file "input.list" with the 
+# list of files and symlinks in such a directory.
+# Then, check that all ENDF-6 files exist.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if [[ -z ${POSITIONAL[0]} ]]
+then
+   echo -e "Provide a list of ENDF-6 files (including path, either absolute or relative to the current working directory).\nEnter one filename per line and terminate with 'DONE'."
+   LIST=()
+   read -p "Enter ENDF-6 file : " INPUT
+   while [[ "$INPUT" != "DONE"  ]]
+   do
+      LIST+=($(realpath "$INPUT"))
+      read -p "Enter ENDF-6 file : " INPUT
+   done
+   INPUT_LIST="input.list"
+   [[ ${#LIST[@]} -eq 0 ]] && {>&2 echo -e "ERROR: no ENDF-6 file was given.";exit 1;}
+   printf '%s\n' "${LIST[@]}" > ${INPUT_LIST}
+else
+   INPUT_LIST="$(realpath ${POSITIONAL[0]})"
+fi
+[[ -s "$INPUT_LIST" ]] || {>&2 echo -e "ERROR: empty or non-existing list of inputs.";exit 1;}
+if [[ -d "$INPUT_LIST" ]]
+then
+   find $(realpath $INPUT_LIST) -maxdepth 1 -type f -o -type l > input.list
+   INPUT_LIST="input.list"
+fi
+for file in $(sed '/^$/d' "$INPUT_LIST")
+do
+   [[ -s "$file" ]] || {>&2 echo -e "ERROR: empty or non-existing ENDF-6 file '$file'";exit 1;}
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# If XSDIR is set, check if the xsdir file exists and extract 
+# the datapath.
+# It is assumed that the word datapath is present only in 
+# the first line of the xsdir and that it is followed by a 
+# "=" symbol.
+# Crate the datapath if it does not exist.
+# Also, copy the xsdir to the current working directory.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#if [[ ! -z $XSDIR ]]
+#then
+#   [[ -f "$XSDIR" ]] || { >&2 echo -e "ERROR: wrong XSDIR file '$XSDIR'."; exit 1; }
+#   export DATAPATH=$( grep -i datapath "$XSDIR" | cut -d= -f2)
+#   [[ -d "${DATAPATH}" ]] || { echo -e "Create DATAPATH directory: '$DATAPATH'"; mkdir "$DATAPATH"; }
+#   echo -e "Copy xsdir '$XSDIR' to '$(realpath $(basename $XSDIR))'."
+#   cp -rf "$XSDIR" . 2>/dev/null
+#   XSDIR="$(realpath $(basename $XSDIR))"
+#fi
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# parallel is a shell tool for executing jobs in parallel.
+# OPTIONS:
+#   --no-run-if-empty: skip empty lines in input files
+#   -j $NJOBS: run a maximum of $NJOBS in parallel
+#   --joblog $JOBLOG: write logs in file $JOBLOG 
+#   --linebuffer: do not postpone the stdout when 
+#                 command completes
+#   --dryrun: show commands but do not run
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+PARALLEL="parallel --no-run-if-empty -j ${NJOBS-28} --joblog ${JOBLOG-"job.out"} --linebuffer ${DRYRUN}"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+run_njoy () {
+#=== FUNCTION =========================================================
+# NAME: run_njoy
+# DESCRIPTION: Run NJOY calculation for a given ENDF-6 file using 
+#              "run-njoy" script.
+#              Use option --wdir to run the calculation in a subfolder
+#              with the same name as the basename of the ENDF-6 file.
+#              e.g. if the name of the file is "1-H-1g.jeff33", "run-njoy"
+#                   will be run in relative folder "./1-H-1g.jeff33/".
+#              Use option --aceonly only if set.
+#              Send stdout to /dev/null to avoid overlapping the stdout
+#              of different NJOY parallel runs.
+# PARAMETER 1: ENDF/6 file (absolute path)
+#======================================================================
+printf "INPUT: %-30s\t ..... START at %s\n" $(basename "$1") $(date +"%T")
+"$RUNNJOY" "$1" --wdir "$(basename $1)" "$ACEONLY" > /dev/null 
+printf "INPUT: %-30s\t ..... END at %s\n" $(basename "$1") $(date +"%T")
+}
+
+run_xsdir () {
+#=== FUNCTION =========================================================
+# NAME: run_xsdir
+# DESCRIPTION:
+# PARAMETER 1: ENDF/6 file (absolute path)
+#======================================================================
+NAME=$(basename "$1")
+WDIR=$(realpath "$NAME")
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Count the number of xsdir files in the given directory.
+# Filter the files by name  using a pattern "*XSDIR".
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+COUNT=$(find "$WDIR" -name "*.XSDIR" | wc -l)
+[[ $COUNT -gt 1 ]] && { >&2 echo -e "ERROR: Found more than one '*.XSDIR' file in directory '$WDIR'.\nSKIP FILE '$NAME'."; exit 1; }
+[[ $COUNT == 0 ]]  && { >&2 echo -e "ERROR: No \"*.XSDIR\" file in directory '$WDIR'.\nSKIP FILE '$NAME'."; exit 1; }
+FXSDIR=$(find "$(realpath $WDIR )" -name "*XSDIR")                             # file with xsdir line
+PREFIX=$(basename "${FXSDIR}" .XSDIR)                                          # prefix 
+FNAME="${PREFIX}${SUFFIX}.ace"                                                 # ACE filename
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Use sed to replace the filename and route placeholders 
+# from the xsdir line.
+# 'tr -s " "' squeezes consecutive whitespaces into one.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+line=$( sed -e "s|filename|${RROUTE-""}$FNAME|" -e "s|route|0|" $FXSDIR | tr -s " ")
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# If a xsdir line is longer than 80 characters, split it into 2 parts with "+\n".
+# Use the whitespaces to define the delimiters for each part.
+# It is assumed that each xsdir line is of the type generated by the ACER 
+# module of NJOY, that is 
+# "  1001.00c    0.999167 filename route 1   1     8687     0     0 2.530E-08 "
+# Hence, each line starts with a whitespace.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if [[ ${#line} -gt 80 ]]
+then
+   part1=$(echo "$line" | cut -d" " -f -6)
+   part2=$(echo "$line" | cut -d" "  -f 6-)
+   line="$part1 +\n$part2"
+fi
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Copy ACE file to ROUTE and print xsdir line to stdout.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ACE="${WDIR}/${PREFIX}.ACE"
+[[ -f "$ACE" ]] || { >&2 echo -e "ERROR: ACE file for '${PREFIX}' not found in '${WDIR}'.\nSKIP FILE '$NAME'."; exit 1; }
+mkdir -p "$DATAPATH/${RROUTE-""}"
+echo "Copy '$ACE' to '$DATAPATH/${RROUTE-""}'"
+cp "$ACE" "$DATAPATH/${RROUTE-""}$FNAME"
+echo -e "$line" >> "$TMPFOLD" 
+}
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                         RUN CALCULATIONS                            #
+#                                                                     #
+#######################################################################
+#######################################################################
+export -f run_njoy run_xsdir
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run NJOY in parallel
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+$PARALLEL run_njoy {} :::: "$INPUT_LIST"
+exit
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run this part only if XSDIR is given.
+# Produce xsdir lines in parallel.
+# Each line is written in parallel to a temporary file.
+# When the parallel runs are finished, the content of the temporary 
+# file is appended to the xsdir before being deleted.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $XSDIR ]] && exit 0
+[[ -f  "$TMPFOLD" ]] && rm -f "$TMPFOLD"
+touch "$TMPFOLD"
+$PARALLEL run_xsdir {} :::: "$INPUT_LIST"
+echo -e "\nAdd/Replace the following lines to xsdir file '$XSDIR':"
+while read -r line
+do
+   echo -e "$line"
+   PATTERN=$( echo "$line" | awk '{print $1}')
+   COUNT=$(grep -c "$PATTERN" "$XSDIR")
+   if [[ $COUNT -eq 0 ]]
+   then
+      COMMAND="$COMMAND -e '$ a\ $line'"                                    # Append line
+   else 
+      COMMAND="$COMMAND -e 's|.*${PATTERN}.*|$line|g'"                       # Replace line
+   fi
+done < "$TMPFOLD"
+if [[ ! -z $COMMAND ]]
+then
+   COMMAND="sed -i $COMMAND $XSDIR"
+   eval "$COMMAND"
+fi
+rm -f "$TMPFOLD"

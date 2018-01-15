@@ -1,0 +1,651 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: run-njoy
+#
+# USAGE: run-njoy FILE [options]
+#
+# DESCRIPTION: Run NJOY for a given input file.
+#              Below are reported the steps carried out by this script.
+#
+#              *) Parse the command line arguments
+#              moder - reconr - broadr - unresr - groupr -
+#                                      heatr - viewr - heatr - gapsr - thermr -
+#                                      purr - moder - acer - acer - viewr
+#
+# OPTIONS: see function ’usage’ below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 17.10.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+CODE=$(basename "$0")                                           # Executable name
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"   # Directory of this script
+WDIR="$(pwd)"                                                   # Working directory
+TIMEOUT='10h'							# Default timeout 4h for stopping codes
+NSIG=6 								# Number of sigma_0 values
+SIGS='1.E10 1.E+4 1.E+3 1.E+2 1.E+1 1.E+0'			# String with sigma_0 values
+NGROUP=238
+GROUPAS="    1.000E-05, 1.000E-04, 5.000E-04, 7.500E-04, 1.000E-03,
+    1.200E-03, 1.500E-03, 2.000E-03, 2.500E-03, 3.000E-03,
+    4.000E-03, 5.000E-03, 7.500E-03, 1.000E-02, 2.530E-02,
+    3.000E-02, 4.000E-02, 5.000E-02, 6.000E-02, 7.000E-02,
+    8.000E-02, 9.000E-02, 1.000E-01, 1.250E-01, 1.500E-01,
+    1.750E-01, 2.000E-01, 2.250E-01, 2.500E-01, 2.750E-01,
+    3.000E-01, 3.250E-01, 3.500E-01, 3.750E-01, 4.000E-01,
+    4.500E-01, 5.000E-01, 5.500E-01, 6.000E-01, 6.250E-01,
+    6.500E-01, 7.000E-01, 7.500E-01, 8.000E-01, 8.500E-01,
+    9.000E-01, 9.250E-01, 9.500E-01, 9.750E-01, 1.000E+00,
+    1.010E+00, 1.020E+00, 1.030E+00, 1.040E+00, 1.050E+00,
+    1.060E+00, 1.070E+00, 1.080E+00, 1.090E+00, 1.100E+00,
+    1.110E+00, 1.120E+00, 1.130E+00, 1.140E+00, 1.150E+00,
+    1.175E+00, 1.200E+00, 1.225E+00, 1.250E+00, 1.300E+00,
+    1.350E+00, 1.400E+00, 1.450E+00, 1.500E+00, 1.590E+00,
+    1.680E+00, 1.770E+00, 1.860E+00, 1.940E+00, 2.000E+00,
+    2.120E+00, 2.210E+00, 2.300E+00, 2.380E+00, 2.470E+00,
+    2.570E+00, 2.670E+00, 2.770E+00, 2.870E+00, 2.970E+00,
+    3.000E+00, 3.050E+00, 3.150E+00, 3.500E+00, 3.730E+00,
+    4.000E+00, 4.750E+00, 5.000E+00, 5.400E+00, 6.000E+00,
+    6.250E+00, 6.500E+00, 6.750E+00, 7.000E+00, 7.150E+00,
+    8.100E+00, 9.100E+00, 1.000E+01, 1.150E+01, 1.190E+01,
+    1.290E+01, 1.375E+01, 1.440E+01, 1.510E+01, 1.600E+01,
+    1.700E+01, 1.850E+01, 1.900E+01, 2.000E+01, 2.100E+01,
+    2.250E+01, 2.500E+01, 2.750E+01, 3.000E+01, 3.125E+01,
+    3.175E+01, 3.325E+01, 3.375E+01, 3.460E+01, 3.550E+01,
+    3.700E+01, 3.800E+01, 3.910E+01, 3.960E+01, 4.100E+01,
+    4.240E+01, 4.400E+01, 4.520E+01, 4.700E+01, 4.830E+01,
+    4.920E+01, 5.060E+01, 5.200E+01, 5.340E+01, 5.900E+01,
+    6.100E+01, 6.500E+01, 6.750E+01, 7.200E+01, 7.600E+01,
+    8.000E+01, 8.200E+01, 9.000E+01, 1.000E+02, 1.080E+02,
+    1.150E+02, 1.190E+02, 1.220E+02, 1.860E+02, 1.925E+02,
+    2.075E+02, 2.100E+02, 2.400E+02, 2.850E+02, 3.050E+02,
+    5.500E+02, 6.700E+02, 6.830E+02, 9.500E+02, 1.150E+03,
+    1.500E+03, 1.550E+03, 1.800E+03, 2.200E+03, 2.290E+03,
+    2.580E+03, 3.000E+03, 3.740E+03, 3.900E+03, 6.000E+03,
+    8.030E+03, 9.500E+03, 1.300E+04, 1.700E+04, 2.500E+04,
+    3.000E+04, 4.500E+04, 5.000E+04, 5.200E+04, 6.000E+04,
+    7.300E+04, 7.500E+04, 8.200E+04, 8.500E+04, 1.000E+05,
+    1.283E+05, 1.500E+05, 2.000E+05, 2.700E+05, 3.300E+05,
+    4.000E+05, 4.200E+05, 4.400E+05, 4.700E+05, 4.995E+05,
+    5.500E+05, 5.730E+05, 6.000E+05, 6.700E+05, 6.790E+05,
+    7.500E+05, 8.200E+05, 8.611E+05, 8.750E+05, 9.000E+05,
+    9.200E+05, 1.010E+06, 1.100E+06, 1.200E+06, 1.250E+06,
+    1.317E+06, 1.356E+06, 1.400E+06, 1.500E+06, 1.850E+06,
+    2.354E+06, 2.479E+06, 3.000E+06, 4.304E+06, 4.800E+06,
+    6.434E+06, 8.187E+06, 1.000E+07, 1.284E+07, 1.384E+07,
+    1.455E+07, 1.568E+07, 1.733E+07, 2.000E+07/"
+OUTPREFIX="ndec-outputs"
+MSGPREFIX="ndec-messages"
+USAGE="Usage:
+
+$CODE  FILE  [options]
+
+
+POSITIONAL ARGUMENTS
+--------------------
+
+FILE                        input ENDF-6 file.
+
+
+KEYWORD ARGUMENTS
+-----------------
+
+-h|--help                   print the help text.
+
+--njoy  NJOY                set the njoy executable in relative/absolute path.
+                            (default is the NJOY2016 exe at NEA)
+
+--temp  TEMP                set the processing temperature TEMP (in K).
+                            only one value is accepted.
+                            (default is TEMP=293.6K)
+
+--sig0  NSIG VAL1 ... VALN  set the dilution factors.
+                            NSIG is the number of sigma0 values that follow
+                            VAL1 to VALN are NSIG sigma0 values.
+                            (default is [1E10 1E4 1E3 1E2 1E1 1E0])
+
+--prefix  PRE               set the output prefix PRE.
+                            output files are named \"PRE.[extension]\".
+                            Prefix must be one word and not contain reserved characters.
+                            (default is MAT number)
+
+--covr                      run NJOY to produce group covariance matrices.
+
+-m|--messages               parse the NJOY output file for warnings and errors.
+                            The messages are reported in a xml file.
+"
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+getMAT () {
+#=== FUNCTION =========================================================
+# NAME: get_mat
+# DESCRIPTION: Find in the ENDF-6 file the MAT number.
+#              Use the sequence number (between 67-80 columns) in the 
+#              second line.
+#              Use xargs to trim the leading blankspaces in case the
+#              MAT is only 3 digits.
+# PARAMETER 1: ENDF-6 filename
+#======================================================================
+sed -n '2,2 p' "$1" | cut -c67-70 | xargs
+}
+
+countMFMT () {
+#=== FUNCTION =========================================================
+# NAME: countMFMT
+# DESCRIPTION: Given a ENDF-6 file in input count how many times a
+#              pattern MF/MT occurs.
+# PARAMETER 1: ENDF-6 filename
+# PARAMETER 2: MF number
+# PARAMETER 3: MT number
+#======================================================================
+record=$(printf "%2s%3s" "$2" "$3")
+awk '{print substr($0,71,5)}' "$1" | grep "$record" | wc -l
+}
+
+countMF () {
+#=== FUNCTION =========================================================
+# NAME: countMF
+# DESCRIPTION: Given a ENDF-6 file in input count how many times a
+#              pattern MF occurs.
+# PARAMETER 1: ENDF-6 filename
+# PARAMETER 2: MF number
+#======================================================================
+awk '{print substr($0,71,2)}' "$1" |grep "$2" -o |wc -l
+}
+
+GetMessages () {
+#=== FUNCTION =========================================================
+# NAME: GetMessages
+# DESCRIPTION: Extract warning/error messages from NJOY output and 
+#              print them in xml format as:
+#
+#              <messages>
+#               <warning module="%s" lines="%s"><![CDATA[ %s ]]></warning>
+#               <error module="%s" lines="%s"><![CDATA[ %s ]]></error>
+#              <messages>
+#
+# PARAMETER 1: NJOY output file
+#======================================================================
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# XML patterns for warning and error messages.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+WARN="<warning module=\"%s\" lines=\"%s\"><![CDATA[ %s ]]></warning>\n"
+ERR="<error module=\"%s\" lines=\"%s\"><![CDATA[ %s ]]></error>\n"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Regular expressions to find modules (MOD_PTRN),
+# njoy messages (MSG_PTRN) and errors (ERR_PTRN).
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MOD_PTRN="^\ [a-z]+[\.]{3}[a-z]"
+MSG_PTRN="-{3}message\ from\ [a-z0-9]+-{3}"
+ERR_PTRN="\*{3}error\ in\ [a-z0-9]+\*{3}"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse file for module, message and error patterns.
+# When a message or a warning pattern is found in a given line,
+# check the following line to see if the message extends on two lines.
+# Write list of error/warnings into file (use xml format).
+# Use agreed elements and attributes defined in the NDEC documentation.
+# Defined standard filename is "PREFIX-messages.xml"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+echo "<messages>"
+while IFS= read -r line
+do
+   ((iline++))
+   if [[ $FLAG -eq 1 ]]
+   then
+      if [[ "$line" =~ ^\ {26}[a-z]+ ]] # it is a message continuation if the line starts with 26 whitespaces
+      then
+         printf "$WARN" "$MODULE" "$((iline-1))-$iline" "$(echo -e "$oldline\n$line"|tr -s " ")"
+      else
+         printf "$WARN" "$MODULE" "$((iline-1))" "$(echo -e "$oldline"|tr -s " ")"
+      fi
+      FLAG=0
+   elif [[ $FLAG -eq 2 ]]
+   then
+      if [[ "$line" =~ ^\ {22}[a-z]+ ]] # it is an error continuation if the line starts with 22 whitespaces
+      then
+         printf "$ERR" "$MODULE" "$((iline-1))-$iline" "$(echo -e "$oldline\n$line"|tr -s " ")"
+      else
+         printf "$ERR" "$MODULE" "$((iline-1))" "$(echo -e "$oldline"|tr -s " ")"
+      fi
+      FLAG=0
+   else
+      [[ "$line" =~ $MOD_PTRN ]] && MODULE=$(echo "$line" | cut -d. -f1 | xargs)
+      [[ "$line" =~ $MSG_PTRN ]] && FLAG=1
+      [[ "$line" =~ $ERR_PTRN ]] && FLAG=2
+   fi
+   oldline="$line"
+done < "$1"
+echo "</messages>"
+}
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PARSE COMMAND LINE ARGUMENTS                     #
+#                                                                     #
+#######################################################################
+#######################################################################
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+    -h|--help) # print USAGE and exit with status 0
+    echo -e "$USAGE"
+    exit 0
+    ;;
+    --prefix)
+    PREFIX="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --temp)
+    TEMPS="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --sig0)
+    NSIG="$2"
+    SIGS=""
+    shift # past argument
+    shift # past value
+    for i in `seq 1 $NSIG`
+    do
+         SIGS=$SIGS"$1 "
+         shift
+    done
+    ;;
+    --njoy)
+    NJOY="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --covr)
+    ERRORR=1
+    shift # past argument
+    ;;
+    -m|--messages)
+    MESSAGES=1
+    shift # past argument
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+#set -- "${POSITIONAL[@]}" # restore positional parameters
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          PROCESS INPUTS                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get SEED (ENDF-6 file) from the list of positional arguments 
+# in the command line.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ ${#POSITIONAL[@]} -eq 0 ]] && {>&2 echo -e "ERROR: missing positional argument \"FILE\"."; exit 1;}
+# read -p "Enter ENDF-6 input file : " SEED
+SEED="$(realpath ${POSITIONAL[0]})"
+[[ -s "$SEED" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED'."; exit 1;}
+printf "%-8s: %60s\n" "FILE" "$SEED"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Once the SEED is set extract its MAT number.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MAT=$(getMAT "$SEED")
+[[ -z $PREFIX ]] && PREFIX=$MAT
+printf "%-8s: %60s\n" "PREFIX" "$PREFIX"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get njoy executable from command line if given,
+# otherwise search for it in script folder.
+# Otherwise search for it in PATH.
+# If not present, exit with ERROR.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -x $NJOY ]] || export NJOY=$(find "$SCRIPTDIR" -name "njoy" -type f )
+[[ -x $NJOY ]] || export NJOY=$(find "$SCRIPTDIR" -name "njoy2016" -type f )
+[[ -x $NJOY ]] || export NJOY=$(which njoy)
+[[ -x $NJOY ]] || export NJOY=$(which njoy2016)
+[[ -x $NJOY ]] || {>&2 echo -e "ERROR: could not find njoy executable file. Consider using option \"--njoy\""; exit 1;}
+NJOY="$(realpath $NJOY)"
+printf "%-8s: %60s\n" "NJOY" "$NJOY"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set temperature values.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+NTEMP=1								# Number of temperatures
+[[ -z $TEMPS ]] && TEMPS='293.6'				# String with temperature values to process
+printf "%-8s: %60s\n" "TEMP" "$TEMPS"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set covr option.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+printf "%-8s: %60s\n" "COVR" "$([[ -z $ERRORR ]] && echo False || echo True)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set messages option.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+printf "%-8s: %60s\n" "MESSAGES" "$([[ -z $MESSAGES ]] && echo False || echo True)"
+
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                      PRODUCE NJOY INPUT FILE                        #
+#                                                                     #
+#######################################################################
+#######################################################################
+INPUT="-- 
+-- *********************************************************
+-- Extract and convert neutron evaluated data
+-- *********************************************************
+-- 
+-- Extract and convert neutron evaluated data
+-- ***
+-- ***
+moder /
+1 -21
+' Extract $MAT '/
+20 $MAT /
+0/
+-- 
+-- *********************************************************
+-- Reconstruct XS from resonance parameters
+-- *********************************************************
+-- 
+reconr /
+-21 -22
+' PENDF file produced at NEA with NDEC '/
+$MAT 2 /  ncards = 2, two comment lines added to the new MF1
+0.001 0.0 / err tempr errmax (default = err*10)
+'Reconstructed $zsyma PENDF from $lib'/
+'Processed with $njoy_version, at NEA $sdate'/
+0/
+-- 
+-- *********************************************************
+-- Perform Doppler-broadening
+-- *********************************************************
+-- 
+broadr / Perform Doppler-broadening
+-21 -22 -23
+$MAT $NTEMP 0 0 0./  IMAT, #temps, restart?, bootstrap?, restart from?
+0.001 / errthn thnmax errmax 
+$TEMPS / Description of temperatures
+0/
+-- 
+-- *********************************************************
+-- 
+-- *********************************************************
+-- 
+unresr /
+-21 -23 -24
+$MAT $NTEMP $NSIG 1
+$TEMPS
+$SIGS
+0 /
+-- 
+-- *********************************************************
+-- Generate multigroup cross section data
+-- *********************************************************
+-- 
+groupr /
+-21 -24 0 25/
+$MAT 1 0 2 6 $NTEMP $NSIG 1 /
+' GENDF file produced at NEA with NDEC '/
+$TEMPS
+$SIGS
+$NGROUP /
+$GROUPAS
+3/
+0/
+0/
+-- 
+-- *********************************************************
+-- Add heating kerma and plot in tape61
+-- *********************************************************
+-- 
+heatr /
+-21 -24 -25 60/
+$MAT 7 0 0 0 2 / (7) Add 7 partial KERMAS (302, 303, 318, 402, 442, 443)
+302 303 304 318 402 442 443/
+viewr /
+60 61 /
+-- 
+-- *********************************************************
+-- Add damage energy
+-- *********************************************************
+-- 
+heatr /
+-21 -25 -26 /
+$MAT 4 0 0 0 2 / (7) Add 4 partial DPA (444 445 446 447)
+444 445 446 447/
+-- 
+-- *********************************************************
+-- Add gas production data
+-- *********************************************************
+-- 
+gaspr /
+-21 -26 -27
+-- 
+-- *********************************************************
+-- Add thermal scattering data for free-gas
+-- *********************************************************
+-- 
+thermr /
+0 -27 -28 /
+0 $MAT 20 $NTEMP 1 0 0 1 221 1 / Add free-gas model(mt=221), 20 equi-probable angles, MF6 law (E-mu-E'), output exteded
+$TEMPS /
+0.001 10.0 / tolerance emax (max energy for thermal treatment in eV)
+-- 
+-- *********************************************************
+-- Process Unresolved Resonance Region (URR) if any.
+-- Generate PTables for MCNP
+-- *********************************************************
+-- 
+purr /
+-21 -28 -29
+$MAT $NTEMP $NSIG 20 64 / 20 bins and 64 ladders for generating XS in URR
+$TEMPS /
+$SIGS /
+0/
+-- 
+-- *********************************************************
+-- The PENDF file is saved in tape90
+-- *********************************************************
+-- 
+moder
+-29 90
+-- 
+-- *********************************************************
+-- Make ACE file for fast data in tape91
+-- xsdir is in tape92
+-- *********************************************************
+-- 
+acer /
+-21 -29 0 91 92 /
+1 0 1 ${ACEXT-".03"} / iopt='1 fast data', iprint='0: min', itype, suff, nxtra=0
+'MAT=$MAT ACE file produced at NEA with NDEC '/
+$MAT $TEMPS/ matd, tempd
+/ newfor='use new cumulative angle distributions, law 61, and outgoing particle distributions: yes', iopp='1 detailed photons: yes'
+/
+-- 
+-- *********************************************************
+-- Check and plot ACE file for fast data in tape62
+-- *********************************************************
+-- 
+acer / Check ACE files
+0 91 60 0 0 /
+7 1 1 -1 / iopt='7: read type 1 ace files to print or edit', iprint='1: max', itype, suff<0, nxtra=0
+''/
+viewr /
+60 62 /
+$([[ -z $ERRORR ]] || echo -e "--
+$([[ `countMF $SEED 32` -ne 0 && `countMF $SEED 33` -eq 0 ]] && echo -e "-- 
+-- *********************************************************
+-- If covariance file MF32 is present without MF33, use 
+-- ERRORR to add  dummy MF33 data for:
+--  - total xs
+--  - elastic scattering xs
+--  - fission xs (only if MF3/MT18 is found)
+--  - capture xs
+-- This practice prevents NJOY ERRORR to stop with error 
+-- message:
+--    ***error in findf*** matXXXX mf33 mt 0 not on tape YY
+-- This error was found in JEFF-3.3B4 Cl-37.
+-- *********************************************************
+-- 
+moder
+-21 40
+errorr
+999 / option to insert dummy file 33 data
+40 41 / input & output tapes
+1 / mt to insert,
+2 / continue mt list ...
+$([[ `countMFMT $SEED 3 18` -ne 0 ]] && echo "18/ add fission")
+102 /
+0 / terminate mt list with zero
+moder
+41 -21" || echo "-- ")
+-- 
+-- *********************************************************
+-- Generate  multigroup cross section data using SCALE 
+-- 238-group energy grid
+-- GENDF is saved in tape93
+-- *********************************************************
+-- 
+groupr /
+-21 -29 0 93/ 
+$MAT 1 0 2 6 $NTEMP $NSIG 1 /
+' GENDF file produced at  NEA with NDEC '/
+$TEMPS
+$SIGS
+$NGROUP /
+$GROUPAS
+3/
+3  221 Free Gas/
+3  251 mubar/
+3  252 xi/
+3  253 gamma/
+3  259 1/v /
+$([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/")
+$([[ `countMFMT $SEED 1 455` -ne 0 ]] && echo "3 455 delayed_nubar/")
+$([[ `countMFMT $SEED 1 456` -ne 0 ]] && echo "3 456 prompt_nubar/")
+$([[ `countMFMT $SEED 5 455` -ne 0 ]] && echo "5 455 delayed_neutron_spectrum/")
+6/
+6 221 Free Gas /
+0/
+0/
+-- 
+-- *********************************************************
+-- Produce ERRORR file in tape94
+-- *********************************************************
+-- 
+errorr
+-21 0 93 94 /
+$MAT 1 2 1 1 / matd, ign='1: arbitrary structure', iwt='2: constant', iprint='1 (default): max', irelco='1 (default): rel'
+1  $TEMPS / mprint='1 (default): max', tempin
+0 33 / iread, mfcov, irespr=1 
+$NGROUP /
+$GROUPAS
+$([[ `countMF $SEED 32` -ne 0 || `countMF $SEED 33` -ne 0 ]] && echo -e "-- 
+-- *********************************************************
+-- Produce BOXER file in tape95
+-- PS file is in tape 63
+-- *********************************************************
+-- 
+covr
+94 95  / nin, nout, nplot=0
+/ matype=3 (covariances), ncase=1
+'$lib' / hlibid=\'up to 6 characters for identification'
+' in BOXER format ' / hdescr='up to 21 characters of descriptive information'
+$MAT / mat, mt=0, mat1=0, mt1=0
+covr
+94 0 45 / nin, nout, nplot
+1  / icolor
+0. / epmin
+1  / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
+$MAT / mat, mt=0, mat1=0, mt1=0
+viewr
+45 63" || echo "-- "
+) 
+")
+stop"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                              RUN NJOY                               #
+#                                                                     #
+#######################################################################
+#######################################################################
+mkdir -p "$WDIR"
+ln -sf "$SEED" "tape20"							# Link seed to tape20
+echo -e "$INPUT" > "${PREFIX}.input"					# Write input file
+cat ${PREFIX}.input | timeout -s SIGABRT "$TIMEOUT" "$NJOY" 2>&1 |tee "${PREFIX}.stderr" # Actual NJOY run
+EXIT_STATUS=${PIPESTATUS[1]}
+[[ $EXIT_STATUS -ne "0" && $EXIT_STATUS -ne "77" ]] && echo EXIT_STATUS_ERROR $EXIT_STATUS >> "${PREFIX}.stderr"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PROCESS OUTPUT FILES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Rename outputs and write list of produced output files (use xml format).
+# Use agreed elements and attributes defined in the NDEC documentation.
+# Defined standard filename is "PREFIX-outputs.xml"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{
+echo "<outputs>"
+mv "output" "${PREFIX}.output"; echo "<file id=\"njoy_output\" format=\"TEXT\">${PREFIX}.output</file>"
+[[ -s "tape90" ]] && { mv "tape90" "${PREFIX}.PENDF" ; echo "<file id=\"pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
+[[ -s "tape91" ]] && { mv "tape91" "${PREFIX}.ACE"; echo "<file id=\"ace\" format=\"ACE\">${PREFIX}.ACE</file>" ;}
+[[ -s "tape92" ]] && { mv "tape92" "${PREFIX}.XSDIR"; echo "<file id=\"xsdir\" format=\"TEXT\">${PREFIX}.XSDIR</file>" ;}
+[[ -s "tape93" ]] && { mv "tape93" "${PREFIX}.GENDF"; echo "<file id=\"gendf\" format=\"GENDF\">${PREFIX}.GENDF</file>" ;}
+[[ -s "tape95" ]] && { mv "tape95" "${PREFIX}.BOXER"; echo "<file id=\"boxer\" format=\"BOXER\">${PREFIX}.BOXER</file>" ;}
+# Case when there is a problem in ERRORR
+[[ ! -s "${PREFIX}.BOXER" &&  -s "${PREFIX}.ERRORR" ]] && rm "tape94"
+[[ -s "tape94" ]] && { mv "tape94" "${PREFIX}.ERRORR"; echo "<file id=\"errorr\" format=\"ERRORR\">${PREFIX}.ERRORR</file>" ;}
+[[ -s "tape61" ]] && { ps2pdf "tape61" "${PREFIX}_HEATR.pdf"; echo "<file id=\"heatr_pdf\" format=\"PDF\">${PREFIX}_HEATR.pdf</file>" ;}
+[[ -s "tape62" ]] && { ps2pdf "tape62" "${PREFIX}_ACE.pdf"; echo "<file id=\"ace_pdf\" format=\"PDF\">${PREFIX}_ACE.pdf</file>" ;}
+[[ -s "tape63" ]] && { ps2pdf "tape63" "${PREFIX}_BOXER.pdf"; echo "<file id=\"boxer_pdf\" format=\"PDF\">${PREFIX}_BOXER.pdf</file>" ;}
+echo "</outputs>"
+} > "${PREFIX}-outputs.xml"
+rm -f "tape"*
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          ERROR MESSAGES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+[[ -z $MESSAGES ]] || GetMessages "${PREFIX}.output" > "${PREFIX}-messages.xml"

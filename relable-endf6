@@ -1,0 +1,313 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: relable-endf6
+#
+# USAGE: relable-endf6  INPUT  [options]
+#
+# DESCRIPTION: Given a ENDF-6 file in input, change the title and the labels in 
+#              MF1MT451 using the script options, as described in 'USAGE'.
+#              The modification can be in place, or apply to an output file if 
+#              given.
+# OPTIONS: see 'USAGE' below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 14.12.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+CODE=$(basename "$0")
+USAGE="Usage:
+
+$CODE  INPUT  [options]
+
+POSITIONAL ARGUMENT
+-------------------
+
+INPUT                       ENDF-6 input file.
+
+OUTPUT                      Output file.
+                            If given, the modifications will appear in file OUTPUT; 
+                            otherwise in file INPUT. 
+
+
+KEYWORD ARGUMENTS
+-----------------
+
+-h| --help                  Print the help text.
+
+-t|--title                  File title given in line 1 col. 1-66.
+                            Title can be shorter than 66 characters, then whitespaces will 
+                            be used to fill the line.
+
+-l|--lib  LIB               Library name - e.g. JEFF-3.3 - given in line 8 col. 5-22.
+                            Do not use symbols that could interfere with sed.
+
+--nlib  NLIB                Library identifier - e.g. NLIB=0 for ENDF/B, NLIB=2 for JEFF -
+                            given in line 2 col. 45-55.
+
+--nver  NVER                Library version number - e.g. NVER=7 for version ENDF/B-VII -
+                            given in line 4 col. 56-66.
+
+--lrel  LREL                Library release number - e.g. LREL=2 for the ENDF/B-VI.2 -
+                            given in line 4 col. 23-33.
+
+--ref  REF                  Primary reference for the evaluation given in line 7 col.
+                            2-22 (left adjusted).
+
+--ddate  DDATE              Original distribution date given in the form ”DIST-DEC74” 
+                            in line 7 col. 23-32.
+
+--endate  ENDATE            Master File entry date in the form yyyymmdd in line 7 
+                            col. 56-63 (right adjusted).
+
+-m|--messages MSGFILE       Report warnings and errors in a xml file named \"MSGFILE.xml\".
+
+-o|--outputs OUFILE         Create list of produced output files in xml file \"OUTFILE.xml\".
+                            This option was created for compatibility with the NDEC webapp.
+
+
+EXAMPLES
+--------
+
+1)  relable-endf6  1-H-3g.jeff33t4  FILE.OUT  --nlib 2  --nver 3  --lrel 3  \\
+    --ddate \"DIST-DEC17\"  --endate 20171231  -l JEFF-3.3
+
+    The H3 file was relabled and saved into FILE.OUT in the working directory.
+    The chosen parameters represent the options for JEFF-3.3.
+
+
+2) relable-endf6  1-H-3g.jeff33t4  --nlib 2  --nver 3  --lrel 3  \\
+    --ddate \"DIST-DEC17\"  --endate 20171231  --lib JEFF-3.3
+
+   As the previous example, but the changes were made in place.
+
+
+3) relable-endf6  1-H-3g.jeff33t4  --title \" NEA H3 file\"
+
+   Change the title (first line) of file 1-H-3g.jeff33t4 to:
+   \" NEA H3 file                                                         1  0 0    0\"
+
+4) relable-endf6  INPUT   OUTPUT  --nlib 2  --nver 3  --lrel 3  \\
+    --ddate \"DIST-DEC17\"  --endate 20171231  -l JEFF-3.3 \\
+    --title \"JEFF-3.3 Incident Neutron File\" -m
+
+   The NDEC options for JEFF-3.3 are added to the the header information.
+   The changes are not perfomed in-place, but apply to a copy of the file 
+   \"INPUT\" with name \"OUTPUT\".
+"
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+Warning () {
+#=== FUNCTION =========================================================
+# NAME: Warning
+# DESCRIPTION: Print warning message reproducing the NJOY format.
+# PARAMETER 1: module name
+# PARAMETER 1: message text
+#======================================================================
+ >&2 printf -- " ---message from %s---%s\n" "$1" "$2"
+}
+
+Error () {
+#=== FUNCTION =========================================================
+# NAME: Error
+# DESCRIPTION: Print error message reproducing the NJOY format.
+# PARAMETER 1: module name
+# PARAMETER 1: message text
+#======================================================================
+ >&2 printf " ***error in %***%s\n" "$1" "$2"
+}
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PARSE COMMAND LINE ARGUMENTS                     #
+#                                                                     #
+#######################################################################
+#######################################################################
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+    -h|--help)
+    echo -e "$USAGE"
+    exit 0
+    ;;
+    -t|--title)
+    TITLE="$2"
+    >&2 echo "$TITLE"
+    [[ ${#TITLE} -gt 66 ]] && { >&2 echo -e "ERROR: TITLE cannot be longer than 66 characters.\n$USAGE"; exit 1;}
+    TITLE=$(printf "%-66s" "$TITLE")
+    >&2 echo "$TITLE"
+    shift # past argument
+    shift # past value
+    ;;
+    -l|--lib)
+    LIB="$2"
+    [[ ${#LIB} -gt 18 ]] && { >&2 echo -e "ERROR: LIB cannot be longer than 18 characters.\n$USAGE"; exit 2;}
+    LIB=$(printf "%-18s" "$LIB")
+    shift # past argument
+    shift # past value
+    ;;
+    --nlib)
+    NLIB="$2"
+    [[ ${#NLIB} -gt 11 ]] && { >&2 echo -e "ERROR: NLIB cannot be longer than 11 characters.\n$USAGE"; exit 3;}
+    NLIB=$(printf "%11s" "$NLIB")
+    shift # past argument
+    shift # past value
+    ;;
+    --nver)
+    NVER="$2"
+    [[ ${#NVER} -gt 11 ]] &&  { >&2 echo -e "ERROR: NVER cannot be longer than 11 characters.\n$USAGE"; exit 4;}
+    NVER=$(printf "%11s" "$NVER")
+    shift # past argument
+    shift # past value
+    ;;
+    --lrel)
+    LREL="$2"
+    [[ ${#LREL} -gt 11 ]] && { >&2 echo -e "ERROR: LREL cannot be longer than 11 characters.\n$USAGE"; exit 5;}
+    LREL=$(printf "%11s" "$LREL")
+    shift # past argument
+    shift # past value
+    ;;
+    --ref)
+    REF="$2"
+    [[ ${#REF} -gt 21 ]] && { >&2 echo -e "ERROR: REF cannot be longer than 21 characters.\n$USAGE"; exit 6;}
+    REF=$(printf " %-21s" "$REF")
+    shift # past argument
+    shift # past value
+    ;;
+    --ddate)
+    DDATE="$2"
+    [[ ${#DDATE} -gt 10 ]] && { >&2 echo -e "ERROR: DDATE cannot be longer than 10 characters.\n$USAGE"; exit 7;}
+    DDATE=$(printf "%-11s" "$DDATE")
+    shift # past argument
+    shift # past value
+    ;;
+    --endate)
+    ENDATE="$2"
+    [[ ${#ENDATE} -gt 8 ]] && { >&2 echo -e "ERROR: ENDATE cannot be longer than 8 characters.\n$USAGE"; exit 8;}
+    ENDATE=$(printf "%8s" "$ENDATE")
+    shift # past argument
+    shift # past value
+    ;;
+    -m|--messages)
+    MSGFILE="$2".xml
+    shift # past argument
+    shift # past argument
+    ;;
+    -o|--outputs)
+    OUTFILE="$2".xml
+    shift # past argument
+    shift # past argument
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          PROCESS INPUTS                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+[[ ${#POSITIONAL[@]} -eq 0 ]] && {>&2 echo -e "ERROR: missing positional argument \"INPUT\"."; exit 9;}
+INPUT="$(realpath ${POSITIONAL[0]})"
+[[ -f "$INPUT" ]] || {>&2 echo -e "ERROR: incorrect \"INPUT\" file '$INPUT'."; exit 10;}
+if [[ ${#POSITIONAL[@]} -gt 1 ]]
+then
+   OUTPUT="$(realpath ${POSITIONAL[1]})"
+   cp "$INPUT" "$OUTPUT"
+   INPUT="$OUTPUT"
+fi
+[[ -z $MSGFILE ]] || printf "<messages>\n</messages>" > "$MSGFILE"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                         CHECK ENCODING                              #
+#                                                                     #
+#######################################################################
+#######################################################################
+if [[ $(file -bi "$INPUT" | grep -ci ascii) -eq 0 ]]
+then
+   module="encoding"
+   msg="found non-ASCII characters"
+   Warning "$module" "$msg"
+   if [[ ! -z $MSGFILE ]]
+   then
+      addline=$(printf "\\<warning module=\"%s\"\\>\\<![CDATA[ %s ]]\\>\\<\\/warning\\>\n" "$module" "$msg")
+      echo $(sed '$i'"$addline" "$MSGFILE") > "$MSGFILE"
+   fi
+fi 
+
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          RUN SED COMMAND                            #
+#                                                                     #
+#######################################################################
+#######################################################################
+[[ ! -z $TITLE ]] &&  COMMAND="$COMMAND -e '1s/.*/${TITLE}   1 0  0    0/'"
+[[ ! -z $NLIB ]] &&   COMMAND="$COMMAND -e '2s/^\(.\{44\}\).\{11\}/\1$NLIB/'"
+[[ ! -z $NVER ]] &&   COMMAND="$COMMAND -e '4s/^\(.\{55\}\).\{11\}/\1$NVER/'"
+[[ ! -z $LREL ]] &&   COMMAND="$COMMAND -e '4s/^\(.\{22\}\).\{11\}/\1$LREL/'"
+[[ ! -z $REF ]] &&    COMMAND="$COMMAND -e '7s/^\(.\{0\}\).\{22\}/\1$REF/'"
+[[ ! -z $DDATE ]] &&  COMMAND="$COMMAND -e '7s/^\(.\{22\}\).\{11\}/\1$DDATE/'"
+[[ ! -z $ENDATE ]] && COMMAND="$COMMAND -e '7s/^\(.\{55\}\).\{8\}/\1$ENDATE/'"
+if [[ ! -z ${LREL} && ! -z ${DDATE} ]]
+then
+   PREFIX=REV
+   MIDFIX=$(echo "${LREL}" | sed -e 's/^[ \t]*//')
+   SUFFIX=$(echo "$DDATE" | cut -c5-)
+   RDATE=$(printf "%-11s" "$PREFIX$MIDFIX$SUFFIX")
+   COMMAND="$COMMAND -e '7s/^\(.\{33\}\).\{11\}/\1$RDATE/'"
+fi
+[[ ! -z $LIB ]] &&  COMMAND="$COMMAND -e '8s/^\(.\{3\}\).\{18\}/\1$LIB/i'"
+COMMAND="sed -i $COMMAND $INPUT"
+eval "$COMMAND"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PROCESS OUTPUT FILES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Write list of produced output files (use xml format).
+# Use agreed elements and attributes defined in the NDEC documentation.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ ! -z $OUTFILE && ! -z $OUTPUT ]] && echo -e "<outputs>
+<file id=\"relab\" format=\"ENDF\">$(basename $OUTPUT)</file>
+</outputs>" > "$OUTFILE"

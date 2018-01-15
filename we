@@ -1,0 +1,145 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: run-njoy
+#
+# USAGE: run-njoy FILE [options]
+#
+# DESCRIPTION: Run NJOY.
+#
+# OPTIONS: see function ’usage’ below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 17.10.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+CODE=$(basename "$0")                                           # Executable name
+USAGE="Usage:
+
+$CODE  FILE  [options]
+
+
+POSITIONAL ARGUMENTS
+--------------------
+
+FILE                        input ENDF-6 file
+
+
+KEYWORD ARGUMENTS
+-----------------
+
+-h|--help                   print the help text.
+
+--njoy  NJOY                set the njoy executable in relative/absolute path.
+                            (default is the NJOY2016 exe at NEA)
+
+--temp  TEMP                set the processing temperature TEMP (in K).
+                            only one value is accepted.
+                            (default is TEMP=293.6K)
+
+--sig0  NSIG VAL1 ... VALN  set the dilution factors.
+                            NSIG is the number of sigma0 values that follow
+                            VAL1 to VALN are NSIG sigma0 values.
+                            (default is [1E10 1E4 1E3 1E2 1E1 1E0])
+
+--prefix  PRE               set the output prefix PRE.
+                            output files are printed as PRE.ext.
+                            (default is MAT number)
+
+-w|--wdir  WDIR             set the working directory (absolute or relative).
+                            if it does not exist it will be created.
+                            (default is current directory)
+
+--errorr                    run NJOY to produce group covariance matrices.
+"
+
+FILE="$(realpath 8237.output)"
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# XML patterns for warning and error messages.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+WARN="<warning module=\"%s\" lines=\"%s\"><![CDATA[ %s ]]></warning>\n"
+ERR="<warning module=\"%s\" lines=\"%s\"><![CDATA[ %s ]]></warning>\n"
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Regular expressions to find modules (MOD_PTRN), 
+# njoy messages (MSG_PTRN) and errors (ERR_PTRN).
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MOD_PTRN="^\ [a-z]+[\.]{3}[a-z]"
+MSG_PTRN="-{3}message\ from\ [a-z]+-{3}"
+ERR_PTRN="\*{3}error\ in\ [a-z]+\*{3}"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse file for module, message and error patterns.
+# When a message or a warning pattern is found in a given line,
+# check the following line to see if the message extends on two lines.
+# Then print the XML pattern for such an error/message.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+echo "<messages>"
+while IFS= read -r line
+do
+   ((iline++))
+   if [[ $FLAG -eq 1 ]]
+   then
+      if [[ "$line" =~ ^\ {26}[a-z]+ ]] # it is a message continuoation if the line starts with 26 whitespaces
+      then
+         printf "$WARN" "$MODULE" "$((iline-1))-$iline" "$(echo -e "$oldline\n$line"|tr -s " ")"
+      else
+         printf "$WARN" "$MODULE" "$((iline-1))" "$(echo -e "$oldline"|tr -s " ")"
+      fi
+      FLAG=0
+   elif [[ $FLAG -eq 2 ]]
+   then
+      if [[ "$line" =~ ^\ {22}[a-z]+ ]] # it is an error continuoation if the line starts with 22 whitespaces
+      then
+         printf "$ERR" "$MODULE" "$((iline-1))-$iline" "$(echo -e "$oldline\n$line"|tr -s " ")"
+      else
+         printf "$ERR" "$MODULE" "$((iline-1))" "$(echo -e "$oldline"|tr -s " ")"
+      fi
+      FLAG=0
+   else
+      [[ "$line" =~ $MOD_PTRN ]] && MODULE=$(echo "$line" | cut -d. -f1)
+      [[ "$line" =~ $MSG_PTRN ]] && FLAG=1
+      [[ "$line" =~ $ERR_PTRN ]] && FLAG=1
+   fi
+   oldline="$line"
+done < "$FILE"
+echo "</messages>"
+exit
+
+
+njoy_warnings njoy_output >> warnings
+njoy_errors njoy_output >> errors
+write_messages warnings errors
+
+# Case when there is a problem in ERRORR
+[[ ! -s tape44 &&  -s tape43 ]] && rm tape43
+
+#----------------------------------------------------------------------
+# Write list of produced output files (use xml format).
+# Use agreed elements and attributes defined in the NDEC documentation.
+# Defined standard filename is "ndec-outputs.xml"
+# Output IDs are:
+# - core_output : the NJOY output
+# - core_pendf : the PENDF created by the last NJOY module
+#----------------------------------------------------------------------
+(
+echo "<outputs>"
+[ -s output ] && echo "<file id=\"njoy_output\" format=\"TEXT\">output</file>"
+[ -s tape90 ] && echo "<file id=\"pendf\" format=\"ENDF\">tape90</file>"
+[ -s tape30 ] && echo "<file id=\"ace\" format=\"ACE\">tape30</file>"
+[ -s tape31 ] && echo "<file id=\"xsdir\" format=\"TEXT\">tape31</file>"
+[ -s tape42 ] && echo "<file id=\"gendf\" format=\"GENDF\">tape42</file>"
+[ -s tape43 ] && echo "<file id=\"errorr\" format=\"ERRORR\">tape43</file>"
+[ -s tape44 ] && echo "<file id=\"boxer\" format=\"BOXER\">tape44</file>"
+[ -s tape46 ] && echo "<file id=\"cov\" format=\"TEXT\">tape46</file>"
+echo "</outputs>"
+) > ndec-outputs.xml
