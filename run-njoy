@@ -285,6 +285,16 @@ case $key in
     MESSAGES=1
     shift # past argument
     ;;
+    --route)
+    ROUTE="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --filename)
+    FILENAME="$2"
+    shift # past argument
+    shift # past value
+    ;;
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
     shift # past argument
@@ -377,7 +387,7 @@ reconr /
 -21 -22
 ' PENDF file produced at NEA with NDEC '/
 $MAT 2 /  ncards = 2, two comment lines added to the new MF1
-0.001 0.0 / err tempr errmax (default = err*10)
+0.005 0.0 0.005/ err tempr errmax (default = err*10)
 'Reconstructed $zsyma PENDF from $lib'/
 'Processed with $njoy_version, at NEA $sdate'/
 0/
@@ -389,7 +399,7 @@ $MAT 2 /  ncards = 2, two comment lines added to the new MF1
 broadr / Perform Doppler-broadening
 -21 -22 -23
 $MAT $NTEMP 0 0 0./  IMAT, #temps, restart?, bootstrap?, restart from?
-0.001 / errthn thnmax errmax 
+0.005 2.0e+6 0.005 / errthn thnmax errmax 
 $TEMPS / Description of temperatures
 0/
 -- 
@@ -455,7 +465,7 @@ thermr /
 0 -27 -28 /
 0 $MAT 20 $NTEMP 1 0 0 1 221 1 / Add free-gas model(mt=221), 20 equi-probable angles, MF6 law (E-mu-E'), output exteded
 $TEMPS /
-0.001 10.0 / tolerance emax (max energy for thermal treatment in eV)
+0.005 10.0 / tolerance emax (max energy for thermal treatment in eV)
 -- 
 -- *********************************************************
 -- Process Unresolved Resonance Region (URR) if any.
@@ -608,6 +618,34 @@ EXIT_STATUS=${PIPESTATUS[1]}
 [[ $EXIT_STATUS -ne "0" && $EXIT_STATUS -ne "77" ]] && echo EXIT_STATUS_ERROR $EXIT_STATUS >> "${PREFIX}.stderr"
 
 
+[[ "$ROUTE" == "default" ]] && ROUTE=0
+if [[ ! -z $ROUTE && -s "tape92" ]]
+then
+   sed -i "s|route|$ROUTE|" "tape92"
+fi
+if [[ ! -z $FILENAME && -s "tape92" ]]
+then
+   line=$(sed "s|filename|$FILENAME|" "tape92")
+   newline=""
+   if [[ ${#line} -gt 80 ]]
+   then
+      tmpline=""
+      for item in ${line[@]}
+      do
+         if [[ ${#"$newline $item"} -lt 78 ]]
+         then
+            tmpline="$newline $item"
+         else
+            newline="$tmpline +\n"
+            tmpline="$item"
+         fi
+      done
+   else
+      newline="$line"
+      sed "s|filename|$newline|" "tape92"
+   fi
+fi
+
 
 #######################################################################
 #######################################################################
@@ -649,3 +687,5 @@ rm -f "tape"*
 #######################################################################
 #######################################################################
 [[ -z $MESSAGES ]] || GetMessages "${PREFIX}.output" > "${PREFIX}-messages.xml"
+
+
