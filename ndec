@@ -21,7 +21,7 @@
 #################
 # Default options
 #################
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
+export SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
 CODE=$(basename "$0") 
 USAGE="
 DESCRIPTION
@@ -99,6 +99,8 @@ INPUT-LIST                       * if INPUT-LIST is a text file:
 
 --run-mcnp-parallel  SCRIPT      (DEVELOPER'S OPTION ONLY) set a different script \"run-mcnp-parallel\".
 
+-p|--processing                  Run processing option.
+
 -b|--benchmark-suites M B1,..,BM Define the benchmark suites that must be run.
                                  M is the number of entries that follow.
                                  B1 to BM are text files containing MCNP input file names.
@@ -119,6 +121,92 @@ INPUT-LIST                       * if INPUT-LIST is a text file:
 --tasks  TASKS                   Set the number of tasks for each MCNP job.
                                  (default is 4)
 "
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# parallel is a shell tool for executing jobs in parallel.
+# OPTIONS:
+#   --no-run-if-empty: skip empty lines in input files
+#   -j $NJOBS: run a maximum of $NJOBS in parallel
+#   --joblog $JOBLOG: write logs in file $JOBLOG 
+#   --linebuffer: do not postpone the stdout when 
+#                 command completes
+#   --dryrun: show commands but do not run
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+PARALLEL="parallel --no-run-if-empty -j ${NJOBS-24} --joblog ${JOBLOG-"job.out"} --linebuffer ${DRYRUN}"
+
+
+
+run-njoy-parallel () {
+#=== FUNCTION =========================================================
+# NAME: run-njoy-parallel
+# DESCRIPTION: Run NJOY calculation for a given ENDF-6 file using 
+#              "run-njoy" script.
+#              Use option --wdir to run the calculation in a subfolder
+#              with the same name as the basename of the ENDF-6 file.
+#              e.g. if the name of the file is "1-H-1g.jeff33", "run-njoy"
+#                   will be run in relative folder "./1-H-1g.jeff33/".
+#              Use option --aceonly only if set.
+#              Send stdout to /dev/null to avoid overlapping the stdout
+#              of different NJOY parallel runs.
+# PARAMETER 1: ENDF/6 file (absolute path)
+#======================================================================
+NAME="$(basename $1)"
+mkdir -p "$NAME"
+printf "\nStarted job %s at %s\n" "$NAME" $(date +"%T")
+(
+cd "$NAME" &&
+"$SCRIPTDIR/run-njoy" "$1" \
+                      --covr \
+                      --route default \
+                      --filename default \
+                      --messages \
+                      > /dev/null 
+)
+printf "\nFinished job %s at %s\n" $(basename "$1") $(date +"%T")
+}
+
+
+
+while true; do
+   read -p "Do you wish to run the NJOY processing [y/n]? " yn
+   case $yn in
+      [Yy]* )
+      read -p "Enter list of ENDF-6 files to process (it can be a file or a folder): " INPUTLIST
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Check if mandatory inputs are present:
+#   - INPUT_LIST
+# If not, get the input files from the command line and save
+# them in a file "input.list".
+# If INPUT_LIST is a directory, create a file "input.list" with the 
+# list of files and symlinks in such a directory.
+# Then, check that all ENDF-6 files exist.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      if [[ -d "$INPUTLIST" ]]
+      then
+         INPUTLIST=($(find $(realpath "$INPUTLIST") -maxdepth 1 -type f -o -type l))
+      elif [[ -s "$INPUTLIST" ]]
+      then
+         INPUTLIST=($(cat "$INPUTLIST"))
+      fi
+      [[ ${#INPUTLIST[@]} -eq 0 ]] && {>&2 echo -e "ERROR: no ENDF-6 file was given.";exit 1;}
+      printf 'List of ENDF-6 files:\n'
+      printf ' - %s\n' "${INPUTLIST[@]}"
+      for file in ${INPUTLIST[@]}
+      do
+         [[ -s "$file" ]] || {>&2 echo -e "ERROR: empty or non-existing ENDF-6 file '$file'";exit 1;}
+      done
+      printf '%s\n' "${INPUTLIST[@]}" > ".tmplist"
+      export -f run-njoy-parallel
+      $PARALLEL run-njoy-parallel {} :::: ".tmplist"
+      rm -f ".tmplist"
+      break
+      ;;
+      [Nn]* )
+      break
+      ;;
+      * ) echo "Please answer yes or no.";;
+   esac
+done
+exit
 
 ###########################################################
 # Setup input options by parsing the command line arguments
@@ -145,6 +233,9 @@ case $key in
     RUNMCNPPARALLEL="$2"
     shift # past argument
     shift # past value
+    ;;
+    -p|--processing)
+    shift # past argument
     ;;
     -b|--benchmark-suites)
     NB="$2"
@@ -238,17 +329,6 @@ else
 fi
 echo -e "MCNP input will be taken from the following benchmark lists:"
 for B in ${BMARKS[@]}; do  echo  " - $(realpath $B)"; done
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# parallel is a shell tool for executing jobs in parallel.
-# OPTIONS:
-#   --no-run-if-empty: skip empty lines in input files
-#   -j $NJOBS: run a maximum of $NJOBS in parallel
-#   --joblog $JOBLOG: write logs in file $JOBLOG 
-#   --linebuffer: do not postpone the stdout when 
-#                 command completes
-#   --dryrun: show commands but do not run
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-PARALLEL="parallel --no-run-if-empty -j ${NJOBS-28} --linebuffer "
 
 
 
@@ -302,6 +382,12 @@ echo -e "$ACEFILE" >> "$TMPACE"
 
 
 
+RUNJNOYFOLDER="$(pwd)/processing"
+if [[ ! -z $INPUT_LIST ]]
+then
+   INPUT_LIST="$(realpath $INPUT_LIST)"
+   mkdir -p $RUNJNOYFOLDER
+( cd $RUNJNOYFOLDER && $RUNNJOYPARALLEL "$INPUT_LIST" --xsdir "$XSDIR" $ACEONLY $NNJOY )
 
 
 #######################################################################
