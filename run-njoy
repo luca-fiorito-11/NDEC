@@ -98,29 +98,37 @@ FILE                        input ENDF-6 file.
 KEYWORD ARGUMENTS
 -----------------
 
--h|--help                   print the help text.
+-h|--help                   Print the help text.
 
---njoy  NJOY                set the njoy executable in relative/absolute path.
+--njoy  NJOY                Set the njoy executable in relative/absolute path.
                             (default is the NJOY2016 exe at NEA)
 
---temp  TEMP                set the processing temperature TEMP (in K).
+--temp  TEMP                Set the processing temperature TEMP (in K).
                             only one value is accepted.
                             (default is TEMP=293.6K)
 
---sig0  NSIG VAL1 ... VALN  set the dilution factors.
+--sig0  NSIG VAL1 ... VALN  Set the dilution factors.
                             NSIG is the number of sigma0 values that follow
                             VAL1 to VALN are NSIG sigma0 values.
                             (default is [1E10 1E4 1E3 1E2 1E1 1E0])
 
---prefix  PRE               set the output prefix PRE.
-                            output files are named \"PRE.[extension]\".
+--prefix  PREFIX            Set the output prefix PREFIX.
+                            output files are named \"PREFIX.[extension]\".
                             Prefix must be one word and not contain reserved characters.
                             (default is MAT number)
 
---covr                      run NJOY to produce group covariance matrices.
+--covr                      Run NJOY to produce group covariance matrices.
 
--m|--messages               parse the NJOY output file for warnings and errors.
+-m|--messages               Parse the NJOY output file for warnings and errors.
                             The messages are reported in a xml file.
+
+--route  ROUTE              Replace \"route\" in the xsdir file. 
+                            if ROUTE=default, then \"route\" is replaced 
+                            by \"0\".
+
+--filename  FILENAME        Replace \"filename\" in the xsdir file.
+                            if FILENAME=default, then \"filename\" is replaced
+                            by \"PREFIX.ACE\".
 "
 
 
@@ -287,11 +295,13 @@ case $key in
     ;;
     --route)
     ROUTE="$2"
+    [[ ${#ROUTE} -gt 78 ]] && {>&2 echo -e "ERROR: \"ROUTE\" exceeds 78 characters."; exit 1;}
     shift # past argument
     shift # past value
     ;;
     --filename)
     FILENAME="$2"
+    [[ ${#FILENAME} -gt 78 ]] && {>&2 echo -e "ERROR: \"FILENAME\" exceeds 78 characters."; exit 1;}
     shift # past argument
     shift # past value
     ;;
@@ -322,7 +332,7 @@ SEED="$(realpath ${POSITIONAL[0]})"
 [[ -s "$SEED" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED'."; exit 1;}
 printf "%-8s: %60s\n" "FILE" "$SEED"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Once the SEED is set extract its MAT number.
+# Once the SEED is set extract its MAT number and set the prefix.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 MAT=$(getMAT "$SEED")
 [[ -z $PREFIX ]] && PREFIX=$MAT
@@ -354,6 +364,22 @@ printf "%-8s: %60s\n" "COVR" "$([[ -z $ERRORR ]] && echo False || echo True)"
 # Set messages option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 printf "%-8s: %60s\n" "MESSAGES" "$([[ -z $MESSAGES ]] && echo False || echo True)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set route option.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if [[ ! -z $ROUTE ]]
+then
+   [[ "$ROUTE" == "default" ]] && ROUTE=0
+   [[ -z $ROUTE ]] || printf "%-8s: %60s\n" "ROUTE" "$ROUTE"
+fi
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set filename option.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if [[ ! -z $FILENAME ]]
+then
+   [[ "$FILENAME" == "default" ]] && FILENAME="${PREFIX}.ACE"
+   [[ -z $FILENAME ]] || printf "%-8s: %60s\n" "FILENAME" "$FILENAME"
+fi
 
 
 
@@ -618,33 +644,49 @@ EXIT_STATUS=${PIPESTATUS[1]}
 [[ $EXIT_STATUS -ne "0" && $EXIT_STATUS -ne "77" ]] && echo EXIT_STATUS_ERROR $EXIT_STATUS >> "${PREFIX}.stderr"
 
 
-[[ "$ROUTE" == "default" ]] && ROUTE=0
-if [[ ! -z $ROUTE && -s "tape92" ]]
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                CHANGE ROUTE AND FILENAME IN XSDIR                   #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# After replacing route and filename, check if the string is longer
+# than 80 characters.
+# If it is split in chunks shorter than 80 characters using the 
+# continuation symbol (+).
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ ! -z $ROUTE && -s "tape92" ]] && COMMAND="-e 's|route|$ROUTE|'"
+[[ ! -z $FILENAME && -s "tape92" ]] && COMMAND="$COMMAND -e 's|filename|$FILENAME|'"
+if [[ ! -z $COMMAND ]]
 then
-   sed -i "s|route|$ROUTE|" "tape92"
-fi
-if [[ ! -z $FILENAME && -s "tape92" ]]
-then
-   line=$(sed "s|filename|$FILENAME|" "tape92")
-   newline=""
+   line=$(eval "sed $COMMAND tape92")
    if [[ ${#line} -gt 80 ]]
    then
+      line=($line)
+      newline=""
       tmpline=""
+      icount=0
       for item in ${line[@]}
       do
-         if [[ ${#"$newline $item"} -lt 78 ]]
+         icount=$((icount+1))
+         if [[ $((${#tmpline} + ${#item} + 1)) -le 79 ]]
          then
-            tmpline="$newline $item"
+            tmpline="$tmpline$item "
          else
-            newline="$tmpline +\n"
-            tmpline="$item"
+            newline="$newline$tmpline+\n"
+            tmpline="$item "
          fi
       done
+      newline="$newline$tmpline"
    else
       newline="$line"
-      sed "s|filename|$newline|" "tape92"
    fi
+   echo -e "$newline" > "tape92"
 fi
+
 
 
 #######################################################################
