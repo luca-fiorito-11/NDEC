@@ -21,6 +21,7 @@
 #################
 # Default options
 #################
+set -e
 export SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
 CODE=$(basename "$0") 
 USAGE="
@@ -135,6 +136,13 @@ PARALLEL="parallel --no-run-if-empty -j ${NJOBS-24} --joblog ${JOBLOG-"job.out"}
 
 
 
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
 run-njoy-parallel () {
 #=== FUNCTION =========================================================
 # NAME: run-njoy-parallel
@@ -155,10 +163,10 @@ printf "\nStarted job %s at %s\n" "$NAME" $(date +"%T")
 (
 cd "$NAME" &&
 "$SCRIPTDIR/run-njoy" "$1" \
-                      --covr \
+                      "$COVR" \
                       --route default \
                       --filename default \
-                      --messages \
+                      "$MESSAGES" \
                       > /dev/null 
 )
 printf "\nFinished job %s at %s\n" $(basename "$1") $(date +"%T")
@@ -166,38 +174,121 @@ printf "\nFinished job %s at %s\n" $(basename "$1") $(date +"%T")
 
 
 
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          NDEC PROCESSING                            #
+#                                                                     #
+#######################################################################
+#######################################################################
 while true; do
    read -p "Do you wish to run the NJOY processing [y/n]? " yn
    case $yn in
       [Yy]* )
-      read -p "Enter list of ENDF-6 files to process (it can be a file or a folder): " INPUTLIST
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Check if mandatory inputs are present:
-#   - INPUT_LIST
-# If not, get the input files from the command line and save
-# them in a file "input.list".
-# If INPUT_LIST is a directory, create a file "input.list" with the 
-# list of files and symlinks in such a directory.
-# Then, check that all ENDF-6 files exist.
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      if [[ -d "$INPUTLIST" ]]
+      PROCESSING=true
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      read -p "Enter the list of ENDF-6 files to process (it can be a file or a folder): " FILELIST
+      if [[ -d "$FILELIST" ]]
       then
-         INPUTLIST=($(find $(realpath "$INPUTLIST") -maxdepth 1 -type f -o -type l))
-      elif [[ -s "$INPUTLIST" ]]
+         FILELIST=($(find $(realpath "$FILELIST") -maxdepth 1 -type f -o -type l))
+      elif [[ -s "$FILELIST" ]]
       then
-         INPUTLIST=($(cat "$INPUTLIST"))
+         FILELIST=($(cat "$FILELIST"))
       fi
-      [[ ${#INPUTLIST[@]} -eq 0 ]] && {>&2 echo -e "ERROR: no ENDF-6 file was given.";exit 1;}
+      [[ ${#FILELIST[@]} -eq 0 ]] && {>&2 echo -e "ERROR: no ENDF-6 file was given.";exit 1;}
       printf 'List of ENDF-6 files:\n'
-      printf ' - %s\n' "${INPUTLIST[@]}"
-      for file in ${INPUTLIST[@]}
+      printf ' - %s\n' "${FILELIST[@]}"
+      for file in ${FILELIST[@]}
       do
          [[ -s "$file" ]] || {>&2 echo -e "ERROR: empty or non-existing ENDF-6 file '$file'";exit 1;}
       done
-      printf '%s\n' "${INPUTLIST[@]}" > ".tmplist"
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      while true; do
+         read -p "Do you wish to process covariances?" yn
+         case $yn in
+            [Yy]* ) export COVR="--covr"; break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer yes or no.";;
+         esac
+      done
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      while true; do
+         read -p "Do you wish to check warnings and errors?" yn
+         case $yn in
+            [Yy]* ) export MESSAGES="--messages"; break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer yes or no.";;
+         esac
+      done
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      printf '%s\n' "${FILELIST[@]}" > ".tmplist"
       export -f run-njoy-parallel
       $PARALLEL run-njoy-parallel {} :::: ".tmplist"
       rm -f ".tmplist"
+      break
+      ;;
+      [Nn]* )
+      break
+      ;;
+      * ) echo "Please answer yes or no.";;
+   esac
+done
+exit
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          NDEC BENCHMARKING                          #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# * select xsdir file
+# * if processing, replace or append xsdir lines
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+while true; do
+   read -p "Do you wish to run the benchmarking [y/n]? " yn
+   case $yn in
+      [Yy]* )
+      read -p "Provide the working directory, if it does not exist it will be created [default=./]: " WDIR
+      WDIR="$(realpath ${WDIR:-./})"
+      mkdir -p "$WDIR"
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      read -p "Provide the XSDIR file: " XSDIR
+      [[ -s "$XSDIR" ]] || {>&2 echo -e "ERROR: empty or non-existing XSDIR file.";exit 1;}
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      if [[ ! -z $PROCESSING ]]
+      then
+         while true; do
+            read -p "Do you wish to include the processed files into the XSDIR? " yn
+            case $yn in
+               [Yy]* )
+               NEWXSDIR="$WDIR/$(basename $XSDIR)"; cp -rf "$XSDIR" $NEWXSDIR 2>/dev/null; XSDIR="$NEWXSDIR"
+               for file in $(find $(pwd) -type f -name "*\.XSDIR")
+               do
+                  line="$(cat $file)"
+                  pattern="$(echo $line |awk '{print $1}')"
+                  count=$(grep -c "$pattern" "$XSDIR")
+                  [[ $count -eq 0 ]] && COMMAND="$COMMAND -e '$ a\ $line'" || COMMAND="$COMMAND -e 's|.*${pattern}.*|$line|g'"
+               done
+               [[ -z $COMMAND ]] || { COMMAND="sed -i $COMMAND $XSDIR"; eval "$COMMAND";}
+               echo $COMMAND
+               break
+               ;;
+               [Nn]* ) break;;
+               * ) echo "Please answer yes or no.";;
+            esac
+         done
+      fi
       break
       ;;
       [Nn]* )
