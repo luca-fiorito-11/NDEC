@@ -380,7 +380,13 @@ then
    [[ "$FILENAME" == "default" ]] && FILENAME="${PREFIX}.ACE"
    [[ -z $FILENAME ]] || printf "%-8s: %60s\n" "FILENAME" "$FILENAME"
 fi
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Extract broadr parameter thnmax using Nicolas' java scripts.
+# Use the upper limit of URR when given (with negative sign to 
+# enforce it), else use 2.0e6. 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+THNMAX=$(java -cp "$SCRIPTDIR/JANIS-BROADR-ExtractUpperRRR/janis-ant.jar" org.nea.janis.ant.njoy.broadr.ExtractUpperLimitResolvedRange default "$SEED")
+[[ "$THNMAX" == default ]] && THNMAX="2.0e6" || THNMAX=-"$THNMAX"
 
 
 
@@ -425,7 +431,7 @@ $MAT 2 /  ncards = 2, two comment lines added to the new MF1
 broadr / Perform Doppler-broadening
 -21 -22 -23
 $MAT $NTEMP 0 0 0./  IMAT, #temps, restart?, bootstrap?, restart from?
-0.005 2.0e+6 0.005 / errthn thnmax errmax 
+0.005 $THNMAX 0.005 / errthn thnmax errmax 
 $TEMPS / Description of temperatures
 0/
 -- 
