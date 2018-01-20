@@ -129,6 +129,9 @@ KEYWORD ARGUMENTS
 --filename  FILENAME        Replace \"filename\" in the xsdir file.
                             if FILENAME=default, then \"filename\" is replaced
                             by \"PREFIX.ACE\".
+
+--keependf                  Save ENDF-6 input in working folder with name
+                            \"PREFIX.ENDF\".
 "
 
 
@@ -304,6 +307,10 @@ case $key in
     [[ ${#FILENAME} -gt 78 ]] && {>&2 echo -e "ERROR: \"FILENAME\" exceeds 78 characters."; exit 1;}
     shift # past argument
     shift # past value
+    ;;
+    --keependf)
+    KEEPENDF=1
+    shift # past argument
     ;;
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
@@ -710,6 +717,7 @@ fi
 {
 echo "<outputs>"
 mv "output" "${PREFIX}.output"; echo "<file id=\"njoy_output\" format=\"TEXT\">${PREFIX}.output</file>"
+[[ -s "tape20" && ! -z $KEEPENDF ]] && mv "tape20" "${PREFIX}.ENDF"
 [[ -s "tape90" ]] && { mv "tape90" "${PREFIX}.PENDF" ; echo "<file id=\"pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
 [[ -s "tape91" ]] && { mv "tape91" "${PREFIX}.ACE"; echo "<file id=\"ace\" format=\"ACE\">${PREFIX}.ACE</file>" ;}
 [[ -s "tape92" ]] && { mv "tape92" "${PREFIX}.XSDIR"; echo "<file id=\"xsdir\" format=\"TEXT\">${PREFIX}.XSDIR</file>" ;}
