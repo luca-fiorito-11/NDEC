@@ -1,0 +1,7 @@
+#!/bin/bash
+
+mkdir -p "test-bi209"
+(
+cd "test-bi209" &&
+../run-njoy  /opt/lab/data/libs/JEFF-33/neutron/endf6/83-Bi-209g.jeff33  --covr  --messages  --prefix Bi209  --keependf
+)
