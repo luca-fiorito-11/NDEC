@@ -1,0 +1,206 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: ndec
+#
+# USAGE: ndec  [options]
+#
+# DESCRIPTION: see 'DESCRIPTION' below
+#
+# OPTIONS: see 'USAGE' below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 18.12.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+set -e
+export SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# parallel is a shell tool for executing jobs in parallel.
+# OPTIONS:
+#   --no-run-if-empty: skip empty lines in input files
+#   -j $NJOBS: run a maximum of $NJOBS in parallel
+#   --joblog $JOBLOG: write logs in file $JOBLOG 
+#   --linebuffer: do not postpone the stdout when 
+#                 command completes
+#   --dryrun: show commands but do not run
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+PARALLEL="parallel --no-run-if-empty -j ${NJOBS-24} --joblog ${JOBLOG-"job.out"} --linebuffer ${DRYRUN}"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+run-njoy-parallel () {
+#=== FUNCTION =========================================================
+# NAME: run-njoy-parallel
+# DESCRIPTION: Run NJOY calculation for a given ENDF-6 file using 
+#              "run-njoy" script.
+#              Use option --wdir to run the calculation in a subfolder
+#              with the same name as the basename of the ENDF-6 file.
+#              e.g. if the name of the file is "1-H-1g.jeff33", "run-njoy"
+#                   will be run in relative folder "./1-H-1g.jeff33/".
+#              Use option --aceonly only if set.
+#              Send stdout to /dev/null to avoid overlapping the stdout
+#              of different NJOY parallel runs.
+# PARAMETER 1: ENDF/6 file (absolute path)
+#======================================================================
+NAME="$(basename $1)"
+mkdir -p "$NAME"
+printf "\nStarted job %s at %s\n" "$NAME" $(date +"%T")
+(
+cd "$NAME" &&
+"$SCRIPTDIR/run-njoy" "$1" \
+                      "$COVR" \
+                      --route "/nfs/lab/programs/SCALE6.2.2/C834NYCP03-ADD.PATCH/SCALE-6.2.2/Ampx" \
+                      --filename default \
+                      "$MESSAGES" \
+                      > /dev/null 
+)
+printf "\nFinished job %s at %s\n" $(basename "$1") $(date +"%T")
+}
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          NDEC PROCESSING                            #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+read -p "Enter the list of ENDF-6 files to process (it can be a file or a folder): " FILELIST
+if [[ -d "$FILELIST" ]]
+then
+   FILELIST=($(find $(realpath "$FILELIST") -maxdepth 1 -type f -o -type l))
+elif [[ -s "$FILELIST" ]]
+then
+   FILELIST=($(cat "$FILELIST"))
+else
+   >&2 echo -e "ERROR: no file or directory called '$FILELIST'"; exit 1
+fi
+[[ ${#FILELIST[@]} -eq 0 ]] && {>&2 echo -e "ERROR: no ENDF-6 file was given.";exit 1;}
+printf 'List of ENDF-6 files:\n'
+printf ' - %s\n' "${FILELIST[@]}"
+for file in ${FILELIST[@]}
+do
+   [[ -s "$file" ]] || { >&2 echo -e "ERROR: empty or non-existing ENDF-6 file '$file'"; exit 1; }
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+read -p "Enter the current working directory [.]: " CWD
+CWD="${CWD:-$(pwd)}"
+mkdir -p "$CWD" 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+while true; do
+ read -p "Do you wish to process covariances? [y/n] " yn
+ case $yn in
+    [Yy]* ) export COVR="--covr"; break;;
+    [Nn]* ) break;;
+    * ) echo "Please answer yes or no.";;
+ esac
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+while true; do
+ read -p "Do you wish to check warnings and errors? [y/n] " yn
+ case $yn in
+    [Yy]* ) export MESSAGES="--messages"; break;;
+    [Nn]* ) break;;
+    * ) echo "Please answer yes or no.";;
+ esac
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+while true; do
+ read -p "Do you wish to add the ACE files to an existing XSDIR? [y/n] " yn
+ case $yn in
+    [Yy]* ) 
+    read -p "Enter the XSDIR file name: " XSDIR
+    [[ -s "$XSDIR" ]] || { >&2 echo -e "ERROR: empty or non-existing XSDIR file '$XSDIR'"; exit 1; }
+    break
+    ;;
+    [Nn]* ) break;;
+    * ) echo "Please answer yes or no.";;
+ esac
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+printf '%s\n' "${FILELIST[@]}" > ".tmplist"
+export -f run-njoy-parallel
+$PARALLEL run-njoy-parallel {} :::: ".tmplist"
+rm -f ".tmplist"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function join_by { local IFS="$1"; shift; echo "$*"; }
+if [[ ! -z $XSDIR ]]
+then
+   for file in  $(find "$CWD" -type f -name "*\.XSDIR")
+   do
+      LINE=""
+      while read -r line; do LINE="$LINE$line\n"; done < "$file"
+      LINE="$(echo ${LINE::${#A}-2} | tr -s ' ')"
+      echo "$LINE" 
+      PATTERN="$( echo $LINE | awk '{print $1}')"
+      COUNT=$(grep -c "$PATTERN" "$XSDIR")
+      if [[ $COUNT -eq 0 ]]
+      then
+         COMMAND="$COMMAND -e '$ a\ ${LINE}'"
+      else
+         COMMAND="$COMMAND -e 's|.*${PATTERN}.*|${LINE}|g'"
+      fi
+   done
+   [[ -z $COMMAND ]] || { COMMAND="sed $COMMAND < $XSDIR > \"$CWD/$(basename $XSDIR)\""; eval "$COMMAND";}
+fi
+exit
+   
+   INPUT_LIST="$(realpath $INPUT_LIST)"
+   mkdir -p $RUNJNOYFOLDER
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Copy the xsdir to the current working directory.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   echo -e "\nCopy xsdir '$XSDIR' to '$RUNJNOYFOLDER/xsdir'."
+   cp -rf "$XSDIR" "$RUNJNOYFOLDER/xsdir" 2>/dev/null
+   XSDIR="$RUNJNOYFOLDER/xsdir"
+   ( cd $RUNJNOYFOLDER && $RUNNJOYPARALLEL "$INPUT_LIST" --xsdir "$XSDIR" $ACEONLY $NNJOY )
+   TMPXSDIR="$RUNJNOYFOLDER/.tmp.xsdir"
+   TMPACE="$RUNJNOYFOLDER/.tmp.ace"
+   rm -f "$TMPXSDIR" "$TMPACE" && touch "$TMPXSDIR" "$TMPACE"
+   export TMPXSDIR TMPACE
+   export -f run_xsdir
+   $PARALLEL run_xsdir {} ::: $(find $(pwd) -type f -name "*\.XSDIR")
+   ACEPATH="$RUNJNOYFOLDER/ACEs"
+   mkdir -p "$ACEPATH"
+   echo -e "\nInclude the following ace files for the MCNP benchmarking:"
+   while read -r line # I could use GNU parallel
+   do
+      echo "$ACEPATH/$(basename $line)"
+      ln -fs $line "$ACEPATH/$(basename $line)"
+   done < "$TMPACE"
+   echo -e "\nAdd/Replace the following lines to xsdir file '$XSDIR':"
+   while read -r line # I could use GNU parallel
+   do
+      echo -e "$line"
+      PATTERN=$( echo "$line" | awk '{print $1}')
+      COUNT=$(grep -c "$PATTERN" "$XSDIR")
+      [[ $COUNT -eq 0 ]] && COMMAND="$COMMAND -e '$ a\ $line'" || COMMAND="$COMMAND -e 's|.*${PATTERN}.*|$line|g'"
+   done < "$TMPXSDIR"
+   [[ -z $COMMAND ]] || { COMMAND="sed -i $COMMAND $XSDIR"; eval "$COMMAND";}
+   rm -f "$TMPXSDIR" "$TMPACE"
+   export DATAPATH="$ACEPATH"
