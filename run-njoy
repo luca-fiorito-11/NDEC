@@ -316,6 +316,10 @@ case $key in
     KEEPENDF=1
     shift # past argument
     ;;
+    --hendf)
+    HENDF=1
+    shift # past argument
+    ;;
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
     shift # past argument
@@ -391,6 +395,10 @@ then
    [[ "$FILENAME" == "default" ]] && FILENAME="${PREFIX}.ACE"
    [[ -z $FILENAME ]] || printf "%-8s: %60s\n" "FILENAME" "$FILENAME"
 fi
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set hendf option.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+printf "%-8s: %60s\n" "HENDF" "$([[ -z $MESSAGES ]] && echo False || echo True)"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Extract broadr parameter thnmax using Nicolas' java scripts.
 # Use the upper limit of URR when given (with negative sign to 
@@ -709,6 +717,59 @@ fi
 #######################################################################
 #######################################################################
 #                                                                     #
+#                PRODUCE HENDF FILE USING PREPRO                      #
+#                                                                     #
+#######################################################################
+#######################################################################
+if [[ -s "tape20" && -s "tape90" && ! -z $HENDF ]]
+then
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	{
+	printf "MERGER.ENDF\n"
+	printf "Extraction of MF1-2,4-99 from ENDF-6 file                            0  0\n"
+	printf "tape20\n"
+	printf "END\n"
+	printf "%-6d%-2d%-3d%-6d%-2d%-3d %s\n" $MAT 0 0 $MAT 2 999
+	printf "%-6d%-2d%-3d%-6d%-2d%-3d %s\n" $MAT 4 0 $MAT 99 999
+	} > MERGER.INP
+	$SCRIPTDIR/PREPRO_2017/merger 2>&1 |tee -a "${PREFIX}.stderr"
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	{
+	printf "MERGER.PENDF\n"
+	printf "Extraction of only MF3 from ENDF-6 file                              0  0\n"
+	printf "tape90\n"
+	printf "END\n"
+	printf "%-6d%-2d%-3d%-6d%-2d%-3d %s\n" $MAT 3 0 $MAT 3 999
+	} > MERGER.INP
+	$SCRIPTDIR/PREPRO_2017/merger 2>&1 |tee -a "${PREFIX}.stderr"
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	{
+	printf "MERGER.OUT\n"
+	printf "HENDF file prepared from NJOY MF3 and rest taken from ENDF file      0  0\n"
+	printf "MERGER.ENDF\n"
+	printf "MERGER.PENDF\n"
+	printf "END\n"
+	printf "%-6d%-2d%-3d%-6d%-2d%-3d %s\n" $MAT 0 0 $MAT 99 999
+	} > MERGER.INP
+	$SCRIPTDIR/PREPRO_2017/merger 2>&1 |tee -a "${PREFIX}.stderr"
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	{
+	printf "MERGER.OUT\n"
+	printf "${PREFIX}.HENDF\n"
+	} > DICTIN.INP
+	$SCRIPTDIR/PREPRO_2017/dictin 2>&1 |tee -a "${PREFIX}.stderr"
+	rm -f DICTIN.INP DICTIN.LST MERGER.INP MERGER.OUT MERGER.PENDF MERGER.ENDF MERGER.LST
+fi
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
 #                    PROCESS OUTPUT FILES                             #
 #                                                                     #
 #######################################################################
@@ -721,8 +782,9 @@ fi
 {
 echo "<outputs>"
 mv "output" "${PREFIX}.output"; echo "<file id=\"njoy_output\" format=\"TEXT\">${PREFIX}.output</file>"
-[[ -s "tape20" && ! -z $KEEPENDF ]] && { mv "tape20" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
+[[ -s "tape20" && ! -z $KEEPENDF ]] && { cp "$SEED" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
 [[ -s "tape90" ]] && { mv "tape90" "${PREFIX}.PENDF" ; echo "<file id=\"pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
+[[ -s "${PREFIX}.HENDF" ]] && { echo "<file id=\"hendf\" format=\"ENDF\">${PREFIX}.HENDF</file>" ;}
 [[ -s "tape91" ]] && { mv "tape91" "${PREFIX}.ACE"; echo "<file id=\"ace\" format=\"ACE\">${PREFIX}.ACE</file>" ;}
 [[ -s "tape92" ]] && { mv "tape92" "${PREFIX}.XSDIR"; echo "<file id=\"xsdir\" format=\"TEXT\">${PREFIX}.XSDIR</file>" ;}
 [[ -s "tape93" ]] && { mv "tape93" "${PREFIX}.GENDF"; echo "<file id=\"gendf\" format=\"GENDF\">${PREFIX}.GENDF</file>" ;}
