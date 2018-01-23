@@ -33,7 +33,7 @@ export SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"            
 #                 command completes
 #   --dryrun: show commands but do not run
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-PARALLEL="parallel --no-run-if-empty -j ${NJOBS-24} --joblog ${JOBLOG-"job.out"} --linebuffer ${DRYRUN}"
+PARALLEL="parallel --no-run-if-empty -j ${NJOBS-24} --linebuffer ${DRYRUN}"
 
 
 
@@ -59,10 +59,11 @@ run-njoy-parallel () {
 # PARAMETER 1: ENDF/6 file (absolute path)
 #======================================================================
 NAME="$(basename $1)"
-mkdir -p "$NAME"
+DIR="$CWD/$NAME"
+mkdir -p "$DIR"
 printf "\nStarted job %s at %s\n" "$NAME" $(date +"%T")
 (
-cd "$NAME" &&
+cd "$DIR" &&
 "$SCRIPTDIR/run-njoy" "$1" \
                       "$COVR" \
                       --route default \
@@ -112,7 +113,7 @@ done
 # Default is pwd.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read -p "Enter the current working directory [.]: " CWD
-CWD="${CWD:-$(pwd)}"
+export CWD="${CWD:-$(pwd)}"
 mkdir -p "$CWD" 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set up advanced options.
