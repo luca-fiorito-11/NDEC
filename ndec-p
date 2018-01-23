@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-# FILE: ndec
+# FILE: ndec-p
 #
 # USAGE: ndec  [options]
 #
@@ -65,7 +65,7 @@ printf "\nStarted job %s at %s\n" "$NAME" $(date +"%T")
 cd "$NAME" &&
 "$SCRIPTDIR/run-njoy" "$1" \
                       "$COVR" \
-                      --route "/nfs/lab/programs/SCALE6.2.2/C834NYCP03-ADD.PATCH/SCALE-6.2.2/Ampx" \
+                      --route default \
                       --filename default \
                       "$MESSAGES" \
                       > /dev/null 
@@ -83,6 +83,12 @@ printf "\nFinished job %s at %s\n" $(basename "$1") $(date +"%T")
 #######################################################################
 #######################################################################
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get list of input files from user prompt.
+# Check if given input is a file or a directory, else exit with error.
+# * if input is a directory: each file in the directory corresponds 
+#   to a ENDF-6 input
+# * if input is file: each line in the file correspond to a 
+#   ENDF-6 input
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read -p "Enter the list of ENDF-6 files to process (it can be a file or a folder): " FILELIST
 if [[ -d "$FILELIST" ]]
@@ -102,31 +108,49 @@ do
    [[ -s "$file" ]] || { >&2 echo -e "ERROR: empty or non-existing ENDF-6 file '$file'"; exit 1; }
 done
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get working directory from prompt.
+# Default is pwd.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read -p "Enter the current working directory [.]: " CWD
 CWD="${CWD:-$(pwd)}"
 mkdir -p "$CWD" 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set up advanced options.
+# If "n" is slected used defaults:
+#   * no covariance processing
+#   * no warning/error checking
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-while true; do
- read -p "Do you wish to process covariances? [y/n] " yn
- case $yn in
-    [Yy]* ) export COVR="--covr"; break;;
-    [Nn]* ) break;;
-    * ) echo "Please answer yes or no.";;
- esac
+while true
+do
+   read -p "Do you wish to set up advanced options? [y/n] " yn
+   case $yn in
+      [Yy]* )
+      while true
+      do
+         read -p "Do you wish to process covariances? [y/n] " yn
+         case $yn in
+            [Yy]* ) export COVR="--covr"; break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer yes or no.";;
+         esac
+      done
+      while true
+      do
+         read -p "Do you wish to check warnings and errors? [y/n] " yn
+         case $yn in
+            [Yy]* ) export MESSAGES="--messages"; break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer yes or no.";;
+         esac
+      done
+      break
+      ;;
+      [Nn]* ) break;;
+      * ) echo "Please answer yes or no.";;
+   esac
 done
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-while true; do
- read -p "Do you wish to check warnings and errors? [y/n] " yn
- case $yn in
-    [Yy]* ) export MESSAGES="--messages"; break;;
-    [Nn]* ) break;;
-    * ) echo "Please answer yes or no.";;
- esac
-done
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Give XSDIR file if processed END-6 files are to be added.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 while true; do
  read -p "Do you wish to add the ACE files to an existing XSDIR? [y/n] " yn
@@ -141,14 +165,16 @@ while true; do
  esac
 done
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run script "run-njoy" in parallel mode
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 printf '%s\n' "${FILELIST[@]}" > ".tmplist"
 export -f run-njoy-parallel
 $PARALLEL run-njoy-parallel {} :::: ".tmplist"
 rm -f ".tmplist"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# If xsdir is given, add/replace lines corresponding to 
+# the processed ENDF-6 files.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-function join_by { local IFS="$1"; shift; echo "$*"; }
 if [[ ! -z $XSDIR ]]
 then
    for file in  $(find "$CWD" -type f -name "*\.XSDIR")
@@ -156,7 +182,6 @@ then
       LINE=""
       while read -r line; do LINE="$LINE$line\n"; done < "$file"
       LINE="$(echo ${LINE::${#A}-2} | tr -s ' ')"
-      echo "$LINE" 
       PATTERN="$( echo $LINE | awk '{print $1}')"
       COUNT=$(grep -c "$PATTERN" "$XSDIR")
       if [[ $COUNT -eq 0 ]]
@@ -168,39 +193,3 @@ then
    done
    [[ -z $COMMAND ]] || { COMMAND="sed $COMMAND < $XSDIR > \"$CWD/$(basename $XSDIR)\""; eval "$COMMAND";}
 fi
-exit
-   
-   INPUT_LIST="$(realpath $INPUT_LIST)"
-   mkdir -p $RUNJNOYFOLDER
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Copy the xsdir to the current working directory.
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   echo -e "\nCopy xsdir '$XSDIR' to '$RUNJNOYFOLDER/xsdir'."
-   cp -rf "$XSDIR" "$RUNJNOYFOLDER/xsdir" 2>/dev/null
-   XSDIR="$RUNJNOYFOLDER/xsdir"
-   ( cd $RUNJNOYFOLDER && $RUNNJOYPARALLEL "$INPUT_LIST" --xsdir "$XSDIR" $ACEONLY $NNJOY )
-   TMPXSDIR="$RUNJNOYFOLDER/.tmp.xsdir"
-   TMPACE="$RUNJNOYFOLDER/.tmp.ace"
-   rm -f "$TMPXSDIR" "$TMPACE" && touch "$TMPXSDIR" "$TMPACE"
-   export TMPXSDIR TMPACE
-   export -f run_xsdir
-   $PARALLEL run_xsdir {} ::: $(find $(pwd) -type f -name "*\.XSDIR")
-   ACEPATH="$RUNJNOYFOLDER/ACEs"
-   mkdir -p "$ACEPATH"
-   echo -e "\nInclude the following ace files for the MCNP benchmarking:"
-   while read -r line # I could use GNU parallel
-   do
-      echo "$ACEPATH/$(basename $line)"
-      ln -fs $line "$ACEPATH/$(basename $line)"
-   done < "$TMPACE"
-   echo -e "\nAdd/Replace the following lines to xsdir file '$XSDIR':"
-   while read -r line # I could use GNU parallel
-   do
-      echo -e "$line"
-      PATTERN=$( echo "$line" | awk '{print $1}')
-      COUNT=$(grep -c "$PATTERN" "$XSDIR")
-      [[ $COUNT -eq 0 ]] && COMMAND="$COMMAND -e '$ a\ $line'" || COMMAND="$COMMAND -e 's|.*${PATTERN}.*|$line|g'"
-   done < "$TMPXSDIR"
-   [[ -z $COMMAND ]] || { COMMAND="sed -i $COMMAND $XSDIR"; eval "$COMMAND";}
-   rm -f "$TMPXSDIR" "$TMPACE"
-   export DATAPATH="$ACEPATH"
