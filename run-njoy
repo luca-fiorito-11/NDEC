@@ -123,12 +123,10 @@ KEYWORD ARGUMENTS
                             The messages are reported in a xml file.
 
 --route  ROUTE              Replace \"route\" in the xsdir file. 
-                            if ROUTE=default, then \"route\" is replaced 
-                            by \"0\".
+                            (default is ROUTE=0)
 
 --filename  FILENAME        Replace \"filename\" in the xsdir file.
-                            if FILENAME=default, then \"filename\" is replaced
-                            by \"PREFIX.ACE\".
+                            (default is FILENAME=PREFIX.ACE)
 
 --keependf                  Save ENDF-6 input in working folder with name
                             \"PREFIX.ENDF\".
@@ -342,7 +340,6 @@ done
 # in the command line.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [[ ${#POSITIONAL[@]} -eq 0 ]] && {>&2 echo -e "ERROR: missing positional argument \"FILE\"."; exit 1;}
-# read -p "Enter ENDF-6 input file : " SEED
 SEED="$(realpath ${POSITIONAL[0]})"
 [[ -s "$SEED" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED'."; exit 1;}
 printf "%-8s: %60s\n" "FILE" "$SEED"
@@ -382,19 +379,13 @@ printf "%-8s: %60s\n" "MESSAGES" "$([[ -z $MESSAGES ]] && echo False || echo Tru
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set route option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-if [[ ! -z $ROUTE ]]
-then
-   [[ "$ROUTE" == "default" ]] && ROUTE=0
-   [[ -z $ROUTE ]] || printf "%-8s: %60s\n" "ROUTE" "$ROUTE"
-fi
+[[ -z $ROUTE ]] && ROUTE=0
+printf "%-8s: %60s\n" "ROUTE" "$ROUTE"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set filename option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-if [[ ! -z $FILENAME ]]
-then
-   [[ "$FILENAME" == "default" ]] && FILENAME="${PREFIX}.ACE"
-   [[ -z $FILENAME ]] || printf "%-8s: %60s\n" "FILENAME" "$FILENAME"
-fi
+[[ -z $FILENAME ]] && FILENAME="${PREFIX}.ACE" || FILENAME="${FILENAME}/${PREFIX}.ACE"
+printf "%-8s: %60s\n" "FILENAME" "$FILENAME"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set hendf option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -683,8 +674,8 @@ EXIT_STATUS=${PIPESTATUS[1]}
 # If it is split in chunks shorter than 80 characters using the 
 # continuation symbol (+).
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[[ ! -z $ROUTE && -s "tape92" ]] && COMMAND="-e 's|route|$ROUTE|'"
-[[ ! -z $FILENAME && -s "tape92" ]] && COMMAND="$COMMAND -e 's|filename|$FILENAME|'"
+[[ -s "tape92" ]] && COMMAND="-e 's|route|$ROUTE|'"
+[[ -s "tape92" ]] && COMMAND="$COMMAND -e 's|filename|$FILENAME|'"
 if [[ ! -z $COMMAND ]]
 then
    line=$(eval "sed $COMMAND tape92")
