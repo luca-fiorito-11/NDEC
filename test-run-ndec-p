@@ -1,0 +1,12 @@
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"   # Directory of this script
+DIR="TEST"
+echo -e "${SCRIPTDIR}/data/files
+$DIR
+y
+y
+y
+y
+y
+${SCRIPTDIR}/data/jeff33.xsdir" | "${SCRIPTDIR}/ndec-p"

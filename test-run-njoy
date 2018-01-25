@@ -1,11 +1,12 @@
 #!/bin/bash
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"   # Directory of this script
-FILE="${SCRIPTDIR}/data/tests/83-Bi-209g.jeff33"
+FILE="${SCRIPTDIR}/data/files/83-Bi-209g.jeff33"
 FILENAME="$(basename $FILE)"
-mkdir -p "test-bi209"
+DIR="TEST"
+mkdir -p "$DIR"
 (
-cd "test-bi209" &&
+cd "$DIR" &&
 "${SCRIPTDIR}/run-njoy" "${FILE}"  --covr  --messages  --prefix "${FILENAME%.*}" \
                                    --hendf  --keependf 
 )
