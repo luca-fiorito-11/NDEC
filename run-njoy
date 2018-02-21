@@ -193,6 +193,7 @@ GetMessages () {
 #              <messages>
 #
 # PARAMETER 1: NJOY output file
+# PARAMETER 2: NJOY standard error (stderr) file
 #======================================================================
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # XML patterns for warning and error messages.
@@ -243,6 +244,16 @@ do
    fi
    oldline="$line"
 done < "$1"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse standard error file.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if [[ ! -z $2 ]]
+then
+   grep "EXIT STATUS" "$2" | while read -r line
+   do
+      printf "$ERR" "" "" "$line"
+   done
+fi
 echo "</messages>"
 }
 
@@ -799,6 +810,6 @@ rm -f "tape"*
 #                                                                     #
 #######################################################################
 #######################################################################
-[[ -z $MESSAGES ]] || GetMessages "${PREFIX}.output" > "${PREFIX}-messages.xml"
+[[ -z $MESSAGES ]] || GetMessages "${PREFIX}.output" "${PREFIX}.stderr" > "${PREFIX}-messages.xml"
 
 
