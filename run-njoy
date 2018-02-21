@@ -657,7 +657,7 @@ ln -sf "$SEED" "tape20"							# Link seed to tape20
 echo -e "$INPUT" > "${PREFIX}.input"					# Write input file
 cat ${PREFIX}.input | timeout -s SIGABRT "$TIMEOUT" "$NJOY" 2>&1 |tee "${PREFIX}.stderr" # Actual NJOY run
 EXIT_STATUS=${PIPESTATUS[1]}
-[[ $EXIT_STATUS -ne "0" && $EXIT_STATUS -ne "77" ]] && echo EXIT_STATUS_ERROR $EXIT_STATUS >> "${PREFIX}.stderr"
+[[ $EXIT_STATUS -ne "0" && $EXIT_STATUS -ne "77" ]] && echo NJOY FAILED TO RUN WITH EXIT STATUS $EXIT_STATUS >> "${PREFIX}.stderr"
 
 
 
