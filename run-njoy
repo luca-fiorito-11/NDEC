@@ -245,15 +245,21 @@ do
    oldline="$line"
 done < "$1"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Parse standard error file.
+# Parse standard error file and extract module.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-if [[ ! -z $2 ]]
-then
-   grep "EXIT STATUS" "$2" | while read -r line
-   do
-      printf "$ERR" "" "" "$line"
-   done
-fi
+MOD_PTRN="^\ [a-z]{4,5}[\.]{3}"
+ERR_PTRN="EXIT STATUS"
+tac "$2" | while IFS= read -r line
+do
+   ((iline++))
+   [[ "$line" =~ $ERR_PTRN ]] && ERRTXT="$line"
+   if [[ "$line" =~ $MOD_PTRN ]]
+   then
+      MODULE=$(echo "$line" | cut -d. -f1 | xargs)
+      printf "$ERR" "$MODULE" "" "$ERRTXT"
+      break
+   fi
+done
 echo "</messages>"
 }
 
