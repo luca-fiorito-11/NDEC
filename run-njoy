@@ -253,7 +253,7 @@ tac "$2" | while IFS= read -r line
 do
    ((iline++))
    [[ "$line" =~ $ERR_PTRN ]] && ERRTXT="$line"
-   if [[ "$line" =~ $MOD_PTRN ]]
+   if [[ "$line" =~ $MOD_PTRN && ! -z $ERRTXT ]]
    then
       MODULE=$(echo "$line" | cut -d. -f1 | xargs)
       printf "$ERR" "$MODULE" "" "$ERRTXT"
