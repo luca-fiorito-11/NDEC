@@ -1,0 +1,28 @@
+ 1.00000-02      20000          2          1          1          1
+LEGEND.IN
+LEGEND.OUT
+     0 0  0  999999999 0.00000+00 1.00000+09 1.00000-03 1.00000-02
+ 
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+ ------------------------------------------------------------------------------
+ Allowable Accuracy---------- .010000000 (   1.0000 per-cent)
+ Maximum Number of Cosines---      20000
+ Tabulated Data--------------Linearize/Thin - Output Tables
+ Legendre Data---------------Tabulate       - Output Tables
+ Negative Table Correction---None
+ Legendre Coef. Correction---Modify up to 1 per-cent
+ Coefficient Tests-----------On
+ ------------------------------------------------------------------------------
+ ENDF/B Input and Output Data Filenames
+ LEGEND.IN
+ LEGEND.OUT
+ ------------------------------------------------------------------------------
+ Minimum Allowable Cross Section and Maximum Allowable Coefficient Change
+ ------------------------------------------------------------------------------
+  MAT1 MF1  MT1  MAT2 MF2  MT2         E1         E2  Sigma-Low   Delta-Fl
+                                      (eV)       (eV)     (b/mu)
+ ------------------------------------------------------------------------------
+     0   0    0  9999  99  999 0.0        1.00000D+9 .001000000    0.01000
+ ------------------------------------------------------------------------------

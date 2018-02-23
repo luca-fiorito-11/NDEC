@@ -276,7 +276,8 @@ fi
 #                                                                     #
 #######################################################################
 #######################################################################
-[[ ! -z $TITLE ]] &&  COMMAND="$COMMAND -e '1s/.*/${TITLE}   1 0  0    0/'"
+[[ -z $TITLE ]] && TITLE=$(head -1 "$INPUT" | awk '{print substr($0,1,66)}')
+COMMAND="$COMMAND -e '1s/.*/${TITLE}   1 0  0    0/'"
 [[ ! -z $NLIB ]] &&   COMMAND="$COMMAND -e '2s/^\(.\{44\}\).\{11\}/\1$NLIB/'"
 [[ ! -z $NVER ]] &&   COMMAND="$COMMAND -e '4s/^\(.\{55\}\).\{11\}/\1$NVER/'"
 [[ ! -z $LREL ]] &&   COMMAND="$COMMAND -e '4s/^\(.\{22\}\).\{11\}/\1$LREL/'"
@@ -292,8 +293,7 @@ then
    COMMAND="$COMMAND -e '7s/^\(.\{33\}\).\{11\}/\1$RDATE/'"
 fi
 [[ ! -z $LIB ]] &&  COMMAND="$COMMAND -e '8s/^\(.\{3\}\).\{18\}/\1$LIB/i'"
-COMMAND="sed -i $COMMAND $INPUT"
-eval "$COMMAND"
+[[ -z $COMMAND ]] || { COMMAND="sed -i $COMMAND $INPUT"; eval "$COMMAND";}
 
 
 

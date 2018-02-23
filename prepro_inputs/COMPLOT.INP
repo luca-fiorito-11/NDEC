@@ -1,0 +1,60 @@
+   0.0        12.5       0.0         10.0             1          1 2.0
+COMPLOT.IN1
+COMPLOT.IN2
+          0          0          0          0          4          1   1
+ 1.0000d-03
+ ENDF/B-VII.0
+ ENDF/B-VII.1
+     1 3  1             9999 3  2                     0          0
+     1 3102             9999 3102                     0          0
+ 
+ 92239 3  0 92237 3  0
+ 
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+ -------------------------------------------------------------------------------
+ Description of Plotter and Frame Layout
+ -------------------------------------------------------------------------------
+ Plotter X Dimensions----------     0.0000 to     13.5000
+ Plotter Y Dimensions----------     0.0000 to     10.0000
+ Plots per Frame (X by Y)------          1 by           1
+ Character Size Multiplier-----       2.00
+ Plot Orientation-------------- X Horizontal/Y Vertical
+ -------------------------------------------------------------------------------
+ Data Filenames
+ -------------------------------------------------------------------------------
+ Data1=COMPLOT.IN1
+ Data2=COMPLOT.IN2
+ -------------------------------------------------------------------------------
+ Retrieval Criteria------------        MAT
+ Grid Type---------------------Tick Marks
+ Border on Plots---------------         No
+ Line Thickness----------------          0
+ Plot Mode--------------------- Cross Section Plus Cross Section Over Ratio
+ Starting Plot Number----------          1
+ On Screen Background Color----White
+ -------------------------------------------------------------------------------
+ Maximum Difference for Plots-- 0.1000D-02 ( 0.1000D+00 %)
+ Maximum Ratio on Plots--------   No Limit
+ -------------------------------------------------------------------------------
+ Data Identifications
+ -------------------------------------------------------------------------------
+ Data1= ENDF/B-VII.0
+ Data2= ENDF/B-VII.1
+ -------------------------------------------------------------------------------
+ Request Ranges
+ -------------------------------------------------------------------------------
+          Mimimum                     Maximum                Identify   Interact
+     MAT MF  MT    Energy-eV      MAT MF  MT    Energy-eV    POINTS
+ -------------------------------------------------------------------------------
+       1  3   1   0.00000+ 0     9999  3   2   1.00000+12       No       Yes
+       1  3 102   0.00000+ 0     9999  3 102   1.00000+12       No       Yes
+ -------------------------------------------------------------------------------
+ Equivalence List
+ -------------------------------------------------------------------------------
+ Master  ZA MF  MT   Second  ZA MF  MT  Multiplier
+ -------------------------------------------------------------------------------
+      92239  3   0        92237  3   0  1.00000+ 0
+ -------------------------------------------------------------------------------
+ 

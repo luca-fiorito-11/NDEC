@@ -1,0 +1,51 @@
+ENDFB7.ALL.MF5
+ENDF/B-VII ALL MF=5 Data                                          7000 0
+ENDFB7.ALL.MF5a
+ENDFB7.ALL.MF5b
+ENDFB7.ALL.MF5c
+ENDFB7.ALL.MF5d
+ENDFB7.ALL.MF5e
+ENDFB7.ALL.MF5f
+ENDFB7.ALL.MF5g
+ENDFB7.ALL.MF5h
+ENDFB7.ALL.MF5i
+ENDFB7.ALL.MF5j
+END
+     1 5  1  9999 5999
+ 
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+************************************************************************
+ Interpretation of Input Parameters
+ ************************************************************************
+ Output Filename
+ ------------------------------------------------------------------------
+ ENDFB7.ALL.MF5
+ ------------------------------------------------------------------------
+ Merged File Label
+ ------------------------------------------------------------------------
+ ENDF/B-VII ALL MF=5 Data                                          7000
+ ------------------------------------------------------------------------
+ Retrieval Criteria-----------        MAT
+ ------------------------------------------------------------------------
+ Input Filenames
+ ------------------------------------------------------------------------
+ ENDFB7.ALL.MF5a
+ ENDFB7.ALL.MF5b
+ ENDFB7.ALL.MF5c
+ ENDFB7.ALL.MF5d
+ ENDFB7.ALL.MF5e
+ ENDFB7.ALL.MF5f
+ ENDFB7.ALL.MF5g
+ ENDFB7.ALL.MF5h
+ ENDFB7.ALL.MF5i
+ ENDFB7.ALL.MF5j
+ ------------------------------------------------------------------------
+ Retrieval Criteria
+ ------------------------------------------------------------------------
+ Request *   Lower Limit *   Upper Limit
+  Number *    MAT MF  MT *    MAT MF  MT
+ ------------------------------------------------------------------------
+       1 *      1  5   1 *   9999  5 999
+ ------------------------------------------------------------------------

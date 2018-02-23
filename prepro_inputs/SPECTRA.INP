@@ -1,0 +1,34 @@
+          0          0 1.0000d-30          1
+SPECTRA.IN
+SPECTRA.OUT
+     0 0  099999999999
+                        (BLANK CARD TERMINATES MAT REQUEST RANGES)
+ 0.00000-00 1.00000-02
+                        (BLANK CARD TERMINATES FILE 3 ERROR LAW)
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+  ------------------------------------------------------------------------------
+  Retrieval Criteria-----------        MAT
+  Monitor Mode-----------------        Off
+  Minimum Cross Section-------- 1.0000E-30
+  Keep Evaluated Data Points---        Yes
+  ------------------------------------------------------------------------------
+  ENDF/B Input and Output Data Filenames
+  SPECTRA.IN
+  SPECTRA.OUT
+  ------------------------------------------------------------------------------
+  Requested Ranges
+  ------------------------------------------------------------------------------
+       Minimum       Maximum
+     MAT MF  MT    MAT MF  MT
+  ------------------------------------------------------------------------------
+       0  0   0 999999 99 999
+  ------------------------------------------------------------------------------
+  Allowable Uncertainty
+  ------------------------------------------------------------------------------
+      Energy Uncertainty   per-cent
+  ------------------------------------------------------------------------------
+  0.0         .010000000     1.0000
+  ------------------------------------------------------------------------------
+

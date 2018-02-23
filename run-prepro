@@ -1,0 +1,226 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: njoy.sh
+#
+# USAGE: njoy.sh [-d] [-l] [-oD logfile] [-h] [starting directories]
+#
+# DESCRIPTION: List and/or delete all stale links in directory trees.
+# The default starting directory is the current directory.
+# Don’t descend directories on other filesystems.
+#
+# OPTIONS: see function ’usage’ below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 17.10.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+CODE=$(basename $0)
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SEED="$1"
+
+USAGE="Usage:
+
+$CODE  FILE  [options]
+
+
+POSITIONAL ARGUMENTS
+--------------------
+
+FILE                        input ENDF-6 file.
+
+
+KEYWORD ARGUMENTS
+-----------------
+
+-h|--help                   Print the help text.
+
+--njoy  NJOY                Set the njoy executable in relative/absolute path.
+                            (default is the NJOY2016 exe at NEA)
+
+--temp  TEMP                Set the processing temperature TEMP (in K).
+                            only one value is accepted.
+                            (default is TEMP=293.6K)
+
+--sig0  NSIG VAL1 ... VALN  Set the dilution factors.
+                            NSIG is the number of sigma0 values that follow
+                            VAL1 to VALN are NSIG sigma0 values.
+                            (default is [1E10 1E4 1E3 1E2 1E1 1E0])
+
+--prefix  PREFIX            Set the output prefix PREFIX.
+                            output files are named \"PREFIX.[extension]\".
+                            Prefix must be one word and not contain reserved characters.
+                            (default is MAT number)
+
+--covr                      Run NJOY to produce group covariance matrices.
+
+-m|--messages               Parse the NJOY output file for warnings and errors.
+                            The messages are reported in a xml file.
+
+--route  ROUTE              Replace \"route\" in the xsdir file.
+                            (default is ROUTE=0)
+"
+
+GetMessages () {
+#=== FUNCTION =========================================================
+# NAME: GetMessages
+# DESCRIPTION: Extract warning/error messages from NJOY output and
+#              print them in xml format as:
+#
+#              <messages>
+#               <warning module="%s" lines="%s"><![CDATA[ %s ]]></warning>
+#               <error module="%s" lines="%s"><![CDATA[ %s ]]></error>
+#              <messages>
+#
+# PARAMETER 1: NJOY output file
+# PARAMETER 2: NJOY standard error (stderr) file
+#======================================================================
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# XML patterns for warning and error messages.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+module="$1"
+WARN="<warning module=\"%s\" lines=\"\"><![CDATA[ %s ]]></warning>\n"
+ERR="<error module=\"%s\" lines=\"\"><![CDATA[ %s ]]></error>\n"
+[[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'ERROR' | while read line;
+do
+   [[ $line = *"Total Execution Time"* ]] && continue
+   printf "$ERR" "$module" "$line"
+done
+[[ -s "${module^^}.STDOUT" ]] && sed "s/^[ \t]*//" "${module^^}.STDOUT" | grep -i 'ERROR' | while read line;
+do
+   [[ $line = *"Total Execution Time"* ]] && continue
+   printf "$ERR" "$module" "$line"
+done
+
+[[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'WARNING' | while read line;
+do
+   printf "$WARN" "$module" "$line"
+done
+[[ -s "${module^^}.STDOUT" ]] && sed "s/^[ \t]*//" "${module^^}.STDOUT" | grep -i 'WARNING' | while read line;
+do
+   printf "$WARN" "$module" "$line"
+done
+}
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PARSE COMMAND LINE ARGUMENTS                     #
+#                                                                     #
+#######################################################################
+#######################################################################
+MODULES=('endf2c' 'linear' 'recent' 'sigma1' 'activate' 'legend' 'fixup')
+PREFIX=prepro
+
+
+run_module (){
+module="$1"
+SEED="$2"
+[[ "$module" == "endf2c" ]] && INPUT="ENDFB.IN" || INPUT="${module^^}.IN"
+[[ "$module" == "endf2c" ]] && OUTPUT="ENDFB.OUT" || OUTPUT="${module^^}.OUT"
+[[ "$module" == "endf2c" ]] || COMMAND="ln -sf $SCRIPTDIR/prepro_inputs/${module^^}.INP  ${module^^}.INP"
+(
+set -e
+ln -sf "$SEED" "$INPUT"
+$COMMAND
+"$SCRIPTDIR/PREPRO_2017/${module}"
+) 2>&1 | tee "${module^^}.STDOUT"
+EXIT_STATUS=$?
+[[ $EXIT_STATUS -eq 0 && -s "$OUTPUT" ]] || { echo "ERROR module ${module} failed to run"| tee -a "${module^^}.STDOUT"; exit $EXIT_STATUS;}
+}
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          RUN PREPRO                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run ENDF2C.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#(
+#set -e
+#ln -sf "$SEED" "ENDFB.IN"
+#"$SCRIPTDIR/PREPRO_2017/endf2c" 2>&1 | tee "ENDF2C.STDOUT"
+#)
+#EXIT_STATUS=$?; [[ $? -eq 0 ]]
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run in subshell, exit if one module fails
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(
+set -e
+run_module "endf2c" "$SEED"
+run_module "linear" "ENDFB.OUT"
+run_module "recent" "LINEAR.OUT"
+run_module "sigma1" "RECENT.OUT"
+run_module "activate" "SIGMA1.OUT"
+run_module "legend" "ACTIVATE.OUT"
+run_module "fixup" "LEGEND.OUT"
+run_module "dictin" "FIXUP.OUT"
+)
+EXIT_STATUS=$?
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          ERROR MESSAGES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+{
+echo "<messages>"
+for module in ${MODULES[@]}
+do
+   GetMessages "$module"
+done
+echo "</messages>"
+} > ${PREFIX}-messages.xml
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PROCESS OUTPUT FILES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Rename outputs and write list of produced output files (use xml format).
+# Use agreed elements and attributes defined in the NDEC documentation.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+OUT="${PREFIX}.output"
+rm -f $OUT 
+for module in ${MODULES[@]}; do [[ -s "${module^^}.LST" ]] && cat "${module^^}.LST" >> $OUT; done
+{
+echo "<outputs>"
+[[ -s "ENDFB.OUT" ]] && { mv "ENDFB.OUT" "${PREFIX}.STD"; echo "<file id=\"std\" format=\"ENDF\">"${PREFIX}.STD"</file>"; }
+[[ -s "$OUT" ]] && echo "<file id=\"prepro_output\" format=\"TEXT\">${OUT}</file>"
+[[ -s "DICTIN.OUT" ]] && { mv "DICTIN.OUT" "${PREFIX}.PENDF"; echo "<file id=\"prepro_pendf\" format=\"PENDF\">${PREFIX}.PENDF</file>" ;}
+echo "</outputs>"
+} > "${PREFIX}-outputs.xml"
+rm -f *\.INP *\.IN *\.OUT *\.LST *\.TMP *\.STDOUT
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          EXIT WITH FAILURE                          #
+#                                                                     #
+#######################################################################
+#######################################################################
+[[ $EXIT_STATUS -ne "0" ]] && exit $EXIT_STATUS

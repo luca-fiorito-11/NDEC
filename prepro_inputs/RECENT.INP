@@ -1,0 +1,40 @@
+          0 1.00000-10          1          1          1          1
+RECENT.IN
+RECENT.OUT
+          1       9999
+                        (BLANK CARD TERMINATES MAT REQUEST RANGES)
+ 0.00000-00 1.00000-04
+ 1.00000+00 1.00000-04
+ 2.00000+00 1.00000-03
+ 2.00000+07 1.00000-03
+                        (BLANK CARD TERMINATES FILE 3 ERROR LAW)
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+==============================================================================
+ Retrieval Criteria-----------        MAT
+ File 2 Mimimum Cross Section- 1.0000E-10
+ Reactions with No Background-     Output (Resonance Contribution)
+ Calculate/Edit Mode----------  Calculate. List Resonance Parameters.
+ Negative Cross Sections------   Make = 0 (No Negative Output)
+ Monitor Mode-----------------         On
+ ==============================================================================
+ ENDF/B Input and Output Data Filenames
+ RECENT.IN
+ RECENT.OUT
+ ==============================================================================
+ Requested MAT Ranges
+ ==============================================================================
+    Mimimum    Maximum
+ ==============================================================================
+          1       9999
+ ==============================================================================
+ Allowable Uncertainty
+ ==============================================================================
+      Energy Uncertainty   per-cent
+ ==============================================================================
+  0.0         1.00000E-4      0.010
+  1.00000000  1.00000E-4      0.010
+  2.00000000  .001000000      0.100
+  20000000.0  .001000000      0.100
+ ==============================================================================

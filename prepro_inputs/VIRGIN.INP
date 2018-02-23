@@ -1,0 +1,53 @@
+ENDFB7.FE.NATURAL
+Natural Fe
+1 keV to 20 MeV Neutrons
+ 26000    1 7.87400+ 0 26000    1 7.87400+ 0    31  -12   -2 1112
+ 0.00000+ 0 1.00000+ 0 1.00000+ 0          1 0.00000+00
+ 0.00000+00 1.00000+00 2.00000+00 3.00000+00 4.00000+00 5.00000+00POINT
+ 6.00000+00 7.00000+00 8.00000+00 9.00000+00 1.00000+01 1.10000+01
+ 1.20000+01 1.30000+01 1.40000+01 1.50000+01 1.60000+01 1.70000+01
+ 1.80000+01 1.90000+01 2.00000+01 2.10000+01 2.20000+01 2.30000+01
+ 2.40000+01 2.50000+01 2.60000+01 2.70000+01 2.80000+01 2.90000+01
+ 3.00000+01
+=== WARNING:with the above input the following 2 lines are not read. ===
+===         They are only if the first line defines the actual number===
+===         of groups and/or the number of source energy points.     ===
+ 1.00000+ 3 2.00000+ 7                                            GROUP
+ 1.00000+ 3 1.00000+ 0 2.00000+ 7 1.00000+ 0                      SOURCE
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+========================================================================
+ ENDF/B INPUT DATA FILENAMES
+ ENDFB7.FE.NATURAL
+ ------------------------------------------------------------------------
+ PROBLEM TITLE
+ ------------------------------------------------------------------------
+ Natural Fe
+ 1 keV to 20 MeV Neutrons
+ ------------------------------------------------------------------------
+ INTERPRETATION OF INPUT PARAMETERS
+ ------------------------------------------------------------------------
+ TOTAL ZA/MT/DENSITY----- 26000/   1/ 7.87400000
+ REACTION ZA/MT/DENSITY-- 26000/   1/ 7.87400000
+ THICKNESSES-------------         31
+ TALLY GROUPS------------        700 (TART)
+ SPECTRUM POINTS---------       2000 (1/E)
+ OUTPUT FLUX------------- Yes
+ OUTPUT REACTIONS-------- Yes
+ OUTPUT CROSS SECTIONS--- Yes
+ ENERGY DEPENDENT OUTPUT- Transmitted Spectrum
+ FLUX NORMALIZATION------ 1.00000000
+ REACTION NORMALIZATION-- 1.00000000
+ COMPOSITION------------- Uniform - Total + Reaction   (0 to Thickness)
+ ------------------------------------------------------------------------
+ THICKNESSES (CM)
+ ------------------------------------------------------------------------
+ 0.0        1.00000000 2.00000000 3.00000000 4.00000000 5.00000000
+ 6.00000000 7.00000000 8.00000000 9.00000000 10.0000000 11.0000000
+ 12.0000000 13.0000000 14.0000000 15.0000000 16.0000000 17.0000000
+ 18.0000000 19.0000000 20.0000000 21.0000000 22.0000000 23.0000000
+ 24.0000000 25.0000000 26.0000000 27.0000000 28.0000000 29.0000000
+ 30.0000000
+ ------------------------------------------------------------------------
+ 

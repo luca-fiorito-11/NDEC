@@ -1,0 +1,39 @@
+          0        -12         2           0 1.00000-03           0
+GROUPIE.IN
+GROUPIE.OUT
+          1          1         1           1          1
+Groupie Test Run
+     1 1  1  999999999
+                        (blank line terminate request list)
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+------------------------------------------------------------------------------
+ ENDF/B Input and Output Data Filenames
+ GROUPIE.IN
+ GROUPIE.OUT
+ ------------------------------------------------------------------------------
+ Retrieval Criteria------------        MAT
+ Number of Energy Groups-------        700 (TART)
+ Maximum Number of Bands/Group-          2 Conserve 1/[Total+<Total>]
+ Points in Weighting Spectrum--          2 (Flat Weighted)
+ Band Selection Criteria------- .001000000 (   0.1000 per-cent)
+ Sigma-0 Definition------------ Multiple of Unshielded Total in Each Group
+ ------------------------------------------------------------------------------
+ Self-Shielded Listing---------        Yes (Cross Sections)
+ Multi-Band Listing------------        Yes
+ Multi-Band Library File-------        Yes
+ Unshielded Averages in ENDF/B-        Yes (Histogram)
+ Unshielded Averages Listing---        Yes (Cross Sections)
+ ------------------------------------------------------------------------------
+ Multi-Band Library Identification
+ ------------------------------------------------------------------------------
+ Groupie Test Run
+ ------------------------------------------------------------------------------
+ MAT/MF/MT Ranges
+ ------------------------------------------------------------------------------
+    Minimum       Maximum
+    MAT MF  MT    MAT MF  MT
+ ------------------------------------------------------------------------------
+      1  1   1   9999 99 999
+ ------------------------------------------------------------------------------

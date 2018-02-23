@@ -1,0 +1,11 @@
+ACTIVATE.IN
+ACTIVATE.OUT
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+  ------------------------------------------------------------------------------
+  ENDF/B Input and Output Data Filenames
+  ACTIVATE.IN
+  ACTIVATE.OUT
+  ------------------------------------------------------------------------------
+

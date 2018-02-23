@@ -1,0 +1,41 @@
+          0          0 293.6      1.00000-10          1          0
+SIGMA1.IN
+SIGMA1.OUT
+          1       9999
+                       (BLANK CARD TERMINATES MAT RANGE REQUESTS)
+ 0.00000+ 0 1.00000-04
+ 1.00000+ 0 1.00000-04
+ 2.00000+ 0 1.00000-03
+ 2.00000+ 7 1.00000-03
+                       (BLANK CARD TERMINATES FILE 3 ERROR LAW)
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+-------------------------------------------------------------------------------
+ Retrieval Criteria-----------        MAT
+ Monitor Mode-----------------        Off
+ Temperature------------------ 293.600000 KELVIN
+ Mimimum Cross Section-------- 1.0000E-10
+ Negative Cross Section------- Make = 0 (No Negative Outout)
+ Unresolved Resonances Region- Copy (No Broadening)
+ -------------------------------------------------------------------------------
+ ENDF/B Input and Output Data Filenames
+ -------------------------------------------------------------------------------
+ SIGMA1.IN
+ SIGMA1.OUT
+ -------------------------------------------------------------------------------
+ Requested MAT Ranges
+ -------------------------------------------------------------------------------
+     Mimimum    Maximum
+ -------------------------------------------------------------------------------
+           1       9999
+ -------------------------------------------------------------------------------
+ Allowable Uncertainty
+ -------------------------------------------------------------------------------
+      Energy Uncertainty   per-cent
+ -------------------------------------------------------------------------------
+  0.0         1.00000E-4     0.0100
+  1.00000000  1.00000E-4     0.0100
+  2.00000000  .001000000     0.1000
+  20000000.0  .001000000     0.1000
+ -------------------------------------------------------------------------------
