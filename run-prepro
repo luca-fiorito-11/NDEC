@@ -1,13 +1,11 @@
 #!/bin/bash
 #===============================================================================
 #
-# FILE: njoy.sh
+# FILE: run-prepro
 #
-# USAGE: njoy.sh [-d] [-l] [-oD logfile] [-h] [starting directories]
+# USAGE: run-prepro FILE [OPTIONS]
 #
-# DESCRIPTION: List and/or delete all stale links in directory trees.
-# The default starting directory is the current directory.
-# Don’t descend directories on other filesystems.
+# DESCRIPTION: 
 #
 # OPTIONS: see function ’usage’ below
 # REQUIREMENTS: ---
@@ -16,7 +14,7 @@
 # AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
 # COMPANY: OECD/NEA
 # VERSION: ---
-# CREATED: 17.10.2017
+# CREATED: 23.02.2018
 # REVISION: ---
 #===============================================================================
 
@@ -43,52 +41,56 @@ KEYWORD ARGUMENTS
 
 -h|--help                   Print the help text.
 
---njoy  NJOY                Set the njoy executable in relative/absolute path.
-                            (default is the NJOY2016 exe at NEA)
-
---temp  TEMP                Set the processing temperature TEMP (in K).
-                            only one value is accepted.
-                            (default is TEMP=293.6K)
-
---sig0  NSIG VAL1 ... VALN  Set the dilution factors.
-                            NSIG is the number of sigma0 values that follow
-                            VAL1 to VALN are NSIG sigma0 values.
-                            (default is [1E10 1E4 1E3 1E2 1E1 1E0])
-
 --prefix  PREFIX            Set the output prefix PREFIX.
                             output files are named \"PREFIX.[extension]\".
                             Prefix must be one word and not contain reserved characters.
-                            (default is MAT number)
+                            (default is \"prepro\")
 
---covr                      Run NJOY to produce group covariance matrices.
+--keependf                  Save ENDF-6 input in working folder with name
+                            \"PREFIX.ENDF\".
 
--m|--messages               Parse the NJOY output file for warnings and errors.
+-m|--messages               Parse the PREPRO output file for warnings and errors.
                             The messages are reported in a xml file.
-
---route  ROUTE              Replace \"route\" in the xsdir file.
-                            (default is ROUTE=0)
 "
+MODULES=('endf2c' 'linear' 'recent' 'sigma1' 'activate' 'legend' 'fixup')
 
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
 GetMessages () {
 #=== FUNCTION =========================================================
 # NAME: GetMessages
-# DESCRIPTION: Extract warning/error messages from NJOY output and
-#              print them in xml format as:
+# DESCRIPTION: Extract warning/error messages from PREPRO outputs and stdout
+#              and print them in xml format as:
 #
 #              <messages>
 #               <warning module="%s" lines="%s"><![CDATA[ %s ]]></warning>
 #               <error module="%s" lines="%s"><![CDATA[ %s ]]></error>
 #              <messages>
 #
-# PARAMETER 1: NJOY output file
-# PARAMETER 2: NJOY standard error (stderr) file
+#              "lines" is always empty.
+#
+# PARAMETER 1: module name in lowercase
 #======================================================================
+module="$1"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # XML patterns for warning and error messages.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-module="$1"
 WARN="<warning module=\"%s\" lines=\"\"><![CDATA[ %s ]]></warning>\n"
 ERR="<error module=\"%s\" lines=\"\"><![CDATA[ %s ]]></error>\n"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse for errors.
+# Parse both files .LST and .STDOUT
+# If patterns:
+#   - Total Execution Time
+# is found in ERROR ine, then skip it because it is not a real error.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'ERROR' | while read line;
 do
    [[ $line = *"Total Execution Time"* ]] && continue
@@ -99,7 +101,10 @@ do
    [[ $line = *"Total Execution Time"* ]] && continue
    printf "$ERR" "$module" "$line"
 done
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse for warnings.
+# Parse both files .LST and .STDOUT
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'WARNING' | while read line;
 do
    printf "$WARN" "$module" "$line"
@@ -108,6 +113,42 @@ done
 do
    printf "$WARN" "$module" "$line"
 done
+}
+
+run_module (){
+#=== FUNCTION =========================================================
+# NAME: run_module
+# DESCRIPTION: Run PREPRO module.
+# PARAMETER 1: module name (lowercase)
+# PARAMETER 2: input SEED
+#======================================================================
+module="$1"
+SEED="$2"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Different approach for module "endf2c" because it takes standard 
+# input and output file "ENDFB.IN" and "ENDFB.OUT".
+# Also, it does not take a .INP file.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ "$module" == "endf2c" ]] && INPUT="ENDFB.IN" || INPUT="${module^^}.IN"
+[[ "$module" == "endf2c" ]] && OUTPUT="ENDFB.OUT" || OUTPUT="${module^^}.OUT"
+[[ "$module" == "endf2c" ]] || COMMAND="ln -sf $SCRIPTDIR/prepro_inputs/${module^^}.INP  ${module^^}.INP"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run module in subshell with "set -e" to exit with error if 
+# module fails.
+# Write stderr and stdout to file .STDOUT
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(
+set -e
+ln -sf "$SEED" "$INPUT"
+$COMMAND
+"$SCRIPTDIR/PREPRO_2017/${module}"
+) 2>&1 | tee "${module^^}.STDOUT"
+EXIT_STATUS=$?
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Retrieve exit status. If False, append error message to 
+# .STDOUT and exit with same exit status.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ $EXIT_STATUS -eq 0 && -s "$OUTPUT" ]] || { echo "ERROR module ${module} failed to run"| tee -a "${module^^}.STDOUT"; exit $EXIT_STATUS;}
 }
 
 
@@ -119,25 +160,62 @@ done
 #                                                                     #
 #######################################################################
 #######################################################################
-MODULES=('endf2c' 'linear' 'recent' 'sigma1' 'activate' 'legend' 'fixup')
-PREFIX=prepro
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+    -h|--help) # print USAGE and exit with status 0
+    echo -e "$USAGE"
+    exit 0
+    ;;
+    --prefix)
+    PREFIX="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -m|--messages)
+    MESSAGES=1
+    shift # past argument
+    ;;
+    --keependf)
+    KEEPENDF=1
+    shift # past argument
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
 
 
-run_module (){
-module="$1"
-SEED="$2"
-[[ "$module" == "endf2c" ]] && INPUT="ENDFB.IN" || INPUT="${module^^}.IN"
-[[ "$module" == "endf2c" ]] && OUTPUT="ENDFB.OUT" || OUTPUT="${module^^}.OUT"
-[[ "$module" == "endf2c" ]] || COMMAND="ln -sf $SCRIPTDIR/prepro_inputs/${module^^}.INP  ${module^^}.INP"
-(
-set -e
-ln -sf "$SEED" "$INPUT"
-$COMMAND
-"$SCRIPTDIR/PREPRO_2017/${module}"
-) 2>&1 | tee "${module^^}.STDOUT"
-EXIT_STATUS=$?
-[[ $EXIT_STATUS -eq 0 && -s "$OUTPUT" ]] || { echo "ERROR module ${module} failed to run"| tee -a "${module^^}.STDOUT"; exit $EXIT_STATUS;}
-}
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          PROCESS INPUTS                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get SEED (ENDF-6 file) from the list of positional arguments
+# in the command line.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ ${#POSITIONAL[@]} -eq 0 ]] && {>&2 echo -e "ERROR: missing positional argument \"FILE\"."; exit 1;}
+SEED="$(realpath ${POSITIONAL[0]})"
+[[ -s "$SEED" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED'."; exit 1;}
+printf "%-8s: %60s\n" "FILE" "$SEED"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set prefix.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $PREFIX ]] && PREFIX="prepro"
+
+
+
+
+
+
 
 
 #######################################################################
@@ -147,15 +225,6 @@ EXIT_STATUS=$?
 #                                                                     #
 #######################################################################
 #######################################################################
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Run ENDF2C.
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#(
-#set -e
-#ln -sf "$SEED" "ENDFB.IN"
-#"$SCRIPTDIR/PREPRO_2017/endf2c" 2>&1 | tee "ENDF2C.STDOUT"
-#)
-#EXIT_STATUS=$?; [[ $? -eq 0 ]]
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Run in subshell, exit if one module fails
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -180,7 +249,7 @@ EXIT_STATUS=$?
 #                                                                     #
 #######################################################################
 #######################################################################
-{
+[[ -z $MESSAGES ]] || {
 echo "<messages>"
 for module in ${MODULES[@]}
 do
@@ -207,6 +276,7 @@ rm -f $OUT
 for module in ${MODULES[@]}; do [[ -s "${module^^}.LST" ]] && cat "${module^^}.LST" >> $OUT; done
 {
 echo "<outputs>"
+[[ -s "ENDFB.IN" && ! -z $KEEPENDF ]] && { cp "$SEED" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
 [[ -s "ENDFB.OUT" ]] && { mv "ENDFB.OUT" "${PREFIX}.STD"; echo "<file id=\"std\" format=\"ENDF\">"${PREFIX}.STD"</file>"; }
 [[ -s "$OUT" ]] && echo "<file id=\"prepro_output\" format=\"TEXT\">${OUT}</file>"
 [[ -s "DICTIN.OUT" ]] && { mv "DICTIN.OUT" "${PREFIX}.PENDF"; echo "<file id=\"prepro_pendf\" format=\"PENDF\">${PREFIX}.PENDF</file>" ;}
