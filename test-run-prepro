@@ -3,10 +3,9 @@
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"   # Directory of this script
 FILE="${SCRIPTDIR}/data/files/83-Bi-209g.jeff33"
 FILENAME="$(basename $FILE)"
-DIR="TEST-NJOY"
+DIR="TEST-PREPRO"
 mkdir -p "$DIR"
 (
 cd "$DIR" &&
-"${SCRIPTDIR}/run-njoy" "${FILE}"  --covr  --messages  --prefix "${FILENAME%.*}" \
-                                   --hendf  --keependf 
+"${SCRIPTDIR}/run-prepro" "${FILE}" --prefix PrePro --keependf --messages 
 )
