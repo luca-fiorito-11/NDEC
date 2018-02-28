@@ -91,14 +91,24 @@ ERR="<error module=\"%s\" lines=\"\"><![CDATA[ %s ]]></error>\n"
 #   - Total Execution Time
 # is found in ERROR ine, then skip it because it is not a real error.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#TEXT="$(<${module^^}.LST)"
+#while IFS=, read -r MODULE PATTERN MSG
+#do
+#   COUNT=$(echo $TEXT | grep -Po "$PATTERN" | wc -l)
+#   [[ $COUNT -gt 0 ]] && printf "$ERR" "$module" "$MSG (x$COUNT)"
+#done < "$SCRIPTDIR/prepro_we_database.csv"
+
+
 [[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'ERROR' | while read line;
 do
    [[ $line = *"Total Execution Time"* ]] && continue
+   [[ $line = *"Interpolation to Lower Energies May Cause Errors"* ]] && continue
    printf "$ERR" "$module" "$line"
 done
 [[ -s "${module^^}.STDOUT" ]] && sed "s/^[ \t]*//" "${module^^}.STDOUT" | grep -i 'ERROR' | while read line;
 do
    [[ $line = *"Total Execution Time"* ]] && continue
+   [[ $line = *"Interpolation to Lower Energies May Cause Errors"* ]] && continue
    printf "$ERR" "$module" "$line"
 done
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
