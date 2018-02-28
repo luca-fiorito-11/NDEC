@@ -181,23 +181,22 @@ mkdir -p "$CWD"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read -p "Provide the XSDIR file: " XSDIR
 [[ -s "$XSDIR" ]] || {>&2 echo -e "ERROR: empty or non-existing XSDIR file.";exit 1;}
-exit
-for B in ${BMARKS[@]}
+
+
+
+
+echo -e "\nCheck xsdir entries for benchmark suite..."
+for file in ${FILELIST[@]}
 do
-   B="$(realpath $B)"
-   echo -e "\nCheck xsdir entries for benchmark suite in file '$B'..."
-   ISO=( $(grep -oh "^[^c].*[0-9]\{5\}\.03[cC]" "$B" | grep -o "[0-9]\{5\}\.03[cC]" | sort | uniq | cut -d. -f1) )
+   ISO=( $(grep -oh "^[^c].*[0-9]\{5\}\.03[cC]" "$file" | grep -o "[0-9]\{5\}\.03[cC]" | sort | uniq | cut -d. -f1) )
    for iso in ${ISO[@]}
    do
       COUNT=$(grep -c "${iso}\.03[cC]" "$XSDIR")
-      [[ $COUNT -lt 1 ]] && {>&2 echo -e "ERROR: Missing entry for '${iso}.03c' in xsdir file.";EFLAG=1;}
+      [[ $COUNT -lt 1 ]] && {>&2 echo -e "ERROR: Missing entry for '${iso}.03c' in xsdir file.";exit 1;}
    done
-   [[ -z $EFLAG ]] || exit 1
-   echo -en "\e[1A"; echo -e "\e[0K\rAll requested xsdir entries for benchmark suite in file '$B' are present."
-   RUNMCNPFOLDER="$(pwd)/benchmarking/$(basename $B)"
-   mkdir -p $RUNMCNPFOLDER
-   (cd $RUNMCNPFOLDER && $RUNMCNPPARALLEL "$XSDIR" "$B" $NMCNP $TASKS )
 done
+echo -en "\e[1A"; echo -e "\e[0K\rAll requested xsdir entries for benchmark suite are present."
+exit
 
 
 
