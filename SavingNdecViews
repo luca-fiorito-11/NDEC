@@ -1,0 +1,27 @@
+
+#!/bin/bash
+
+wget --proxy=off --keep-session-cookies --save-cookies cookies.txt --post-data "u=admin&p=p" http://jdev.nea.fr/ndecweb-alpha/login.html
+
+wget --proxy=off --load-cookies cookies.txt http://jdev.nea.fr/ndecweb-alpha/view/index.ftl -nv -r
+
+mv ./jdev.nea.fr/ndecweb-alpha/view/index.ftl  ./jdev.nea.fr/ndecweb-alpha/view/index.html
+
+for f in $(find ./jdev.nea.fr/ndecweb-alpha/view/ -name "*seed*")
+do
+   FILE=$(echo $f | sed 's|\.ftl.*?id=\([0-9]*\)|\1\.html|')
+   mv $f $FILE
+done
+
+for f in $(find ./jdev.nea.fr/ndecweb-alpha/view/ -maxdepth 1 -name "*html")
+do
+   sed -i "s~/ndecweb-alpha/files/~../files/~g" $f
+   sed -i "s~index.ftl~index.html~g" $f
+   sed -i "s|\.ftl.*?id=\([0-9]*\)|\1\.html|" $f
+done
+for f in $(find ./jdev.nea.fr/ndecweb-alpha/view/ndec-web/ -maxdepth 1 -name "*html")
+do
+   sed -i "s~/ndecweb-alpha/files/~../../files/~g" $f
+   sed -i "s~index.ftl~index.html~g" $f
+   sed -i "s|\.ftl.*?id=\([0-9]*\)|\1\.html|" $f
+done
