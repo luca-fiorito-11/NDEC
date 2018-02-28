@@ -1,0 +1,415 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: ndec-b
+#
+# USAGE: ndec-b
+#
+# DESCRIPTION: see 'DESCRIPTION' below
+#
+# OPTIONS: see 'USAGE' below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 28.02.2018
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+#set -e
+export SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
+CODE=$(basename "$0") 
+USAGE="
+DESCRIPTION
+-----------
+Run NJOY calculations in parallel using different ENDF-6 files
+Need ace files for isotopes at room temperature.
+
+IMPORTANT: the ace files produced by the NJOY runs will be copied to the datapath defined in the xsdir file, 
+hence some existing files could be replaced.
+Make sure that thish is exactly what desired, else change the datapath and move the ace files accordingly.
+
+
+
+USAGE
+-----
+
+$CODE  XSDIR  INPUT-LIST  [options]
+
+
+
+POSITIONAL ARGUMENTS
+--------------------
+
+XSDIR                            Template xsdir for the NDEC calcualtion. XSDIR must contain, in order:
+
+                                    * the datapath, of the type:
+
+                                        DATAPATH=/path/to/ace/files
+
+                                      Notice that 1) the word \"datapath\" (case insensitive) must only be present
+                                      in the first line of XSDIR, 2) a \"=\" sign must separate \"datapath\"
+                                      from the actual directory path.
+
+                                    * the atomic weight ratios section.
+
+                                    * the word \"directory\", plus the ace file pointers for all the isotopes
+                                      needed to run the pre-defined suite of MCNP benchmarks and that are not 
+                                      given in input list.
+
+
+OPTIONAL ARGUMENTS
+------------------
+
+INPUT-LIST                       * if INPUT-LIST is a text file:
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                   it must contain a list of all the ENDF-6 files (ABSOLUTE path) 
+                                   that must be processed.
+
+                                   e.g. file.txt:
+                                        /path/to/file-1.endf6 
+                                        /path/to/file-2.endf6 
+                                        /path/to/file-3.endf6 
+
+                                   To create such a file one could make use of the bash command:
+
+                                     find  \$(pwd)  -maxdepth 1  -name \"pattern\"  -type f  -o  -type l
+
+                                 * if INPUT-LIST is a directory:
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                   all the files contained in the selected directory are processed.
+                                   that must be processed is created using all the files in the
+                                   selected directory.
+
+                                 * if INPUT-LIST is not given:
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                   the NJOY processing will be skipped in favor of the MCNP benchmarking 
+                                   calculations, which will start with the given xsdir files without 
+                                   modifications.
+
+-h| --help                       Print the help text.
+
+--ace-only                       Run NJOY only for the production of the ACE files.
+
+--run-njoy-parallel  SCRIPT      (DEVELOPER'S OPTION ONLY) set a different script \"run-njoy-parallel\".
+
+--run-mcnp-parallel  SCRIPT      (DEVELOPER'S OPTION ONLY) set a different script \"run-mcnp-parallel\".
+
+-p|--processing                  Run processing option.
+
+-b|--benchmark-suites M B1,..,BM Define the benchmark suites that must be run.
+                                 M is the number of entries that follow.
+                                 B1 to BM are text files containing MCNP input file names.
+                                 Each text file must contain a list of MCNP input files (ABSOLUTE path)
+                                 that must be processed (one file per line).
+
+                                  e.g. file.txt:
+                                       /path/to/mcnp/file-1.inp
+                                       /path/to/mcnp/file-2.i
+                                       /path/to/mcnp/file-3.txt
+
+--max-jobs-mcnp  NNJOY           Set the maximum number of NJOY jobs that will be run in parallel by GNU parallel.
+                                 (default is 28)
+
+--max-jobs-mcnp  NMCNP           Set the maximum number of MCNP jobs that will be run in parallel by GNU parallel.
+                                 (default is 7)
+
+--tasks  TASKS                   Set the number of tasks for each MCNP job.
+                                 (default is 4)
+"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# parallel is a shell tool for executing jobs in parallel.
+# OPTIONS:
+#   --no-run-if-empty: skip empty lines in input files
+#   -j $NJOBS: run a maximum of $NJOBS in parallel
+#   --joblog $JOBLOG: write logs in file $JOBLOG 
+#   --linebuffer: do not postpone the stdout when 
+#                 command completes
+#   --dryrun: show commands but do not run
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+PARALLEL="parallel --no-run-if-empty -j ${NJOBS-20} --linebuffer ${DRYRUN}"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          NDEC BENCHMARKING                          #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get list of MCNP input files from user prompt.
+# Check if given input is a file or a directory, else exit with error.
+# * if input is a directory: each file in the directory corresponds
+#   to a MCNP input
+# * if input is file: each line in the file correspond to a
+#   MCNP input
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+read -p "Enter the list of MCNP input files to process (it can be a file or a folder): " FILELIST
+if [[ -d "$FILELIST" ]]
+then
+   FILELIST=($(find $(realpath "$FILELIST") -maxdepth 1 -type f -o -type l))
+elif [[ -s "$FILELIST" ]]
+then
+   FILELIST=($(cat "$FILELIST"))
+else
+   >&2 echo -e "ERROR: no file or directory called '$FILELIST'"; exit 1
+fi
+[[ ${#FILELIST[@]} -eq 0 ]] && {>&2 echo -e "ERROR: no MCNP input file was given.";exit 1;}
+printf 'List of MCNP input files:\n'
+printf ' - %s\n' "${FILELIST[@]}"
+printf '%d files given\n' "${#FILELIST[@]}"
+for file in ${FILELIST[@]}
+do
+   [[ -s "$file" ]] || { >&2 echo -e "ERROR: empty or non-existing MCNP input file '$file'"; exit 1; }
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get working directory from prompt.
+# Default is pwd.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+read -p "Enter the target working directory [.]: " CWD
+export CWD="${CWD:-$(pwd)}"
+mkdir -p "$CWD"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get XSDIR file.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+read -p "Provide the XSDIR file: " XSDIR
+[[ -s "$XSDIR" ]] || {>&2 echo -e "ERROR: empty or non-existing XSDIR file.";exit 1;}
+exit
+for B in ${BMARKS[@]}
+do
+   B="$(realpath $B)"
+   echo -e "\nCheck xsdir entries for benchmark suite in file '$B'..."
+   ISO=( $(grep -oh "^[^c].*[0-9]\{5\}\.03[cC]" "$B" | grep -o "[0-9]\{5\}\.03[cC]" | sort | uniq | cut -d. -f1) )
+   for iso in ${ISO[@]}
+   do
+      COUNT=$(grep -c "${iso}\.03[cC]" "$XSDIR")
+      [[ $COUNT -lt 1 ]] && {>&2 echo -e "ERROR: Missing entry for '${iso}.03c' in xsdir file.";EFLAG=1;}
+   done
+   [[ -z $EFLAG ]] || exit 1
+   echo -en "\e[1A"; echo -e "\e[0K\rAll requested xsdir entries for benchmark suite in file '$B' are present."
+   RUNMCNPFOLDER="$(pwd)/benchmarking/$(basename $B)"
+   mkdir -p $RUNMCNPFOLDER
+   (cd $RUNMCNPFOLDER && $RUNMCNPPARALLEL "$XSDIR" "$B" $NMCNP $TASKS )
+done
+
+
+
+
+###########################################################
+# Setup input options by parsing the command line arguments
+###########################################################
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+    -h|--help)
+    echo -e "$USAGE"
+    exit 0
+    ;;
+    --ace-only)
+    ACEONLY="--ace-only"
+    shift # past argument
+    ;;
+    --run-njoy-parallel)
+    RUNNJOYPARALLEL="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --run-mcnp-parallel)
+    RUNMCNPPARALLEL="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -p|--processing)
+    shift # past argument
+    ;;
+    -b|--benchmark-suites)
+    NB="$2"
+    shift # past argument
+    shift # past value
+    for i in $(seq 1 $NB); do BMARKS+=("$1"); shift; done
+    ;;
+    --tasks)
+    TASKS="--tasks $2"
+    shift # past argument
+    shift # past value
+    ;;
+    --max-jobs-mcnp)
+    NMCNP="--max-jobs $2"
+    shift # past argument
+    shift # past value
+    ;;
+    --max-jobs-njoy)
+    NNJOY="--max-jobs $2"
+    shift # past argument
+    shift # past value
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          PROCESS INPUTS                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get run-njoy-parallel from command line if given,
+# otherwise search for it in script folder.
+# Otherwise search for it in PATH.
+# If not present, exit with ERROR.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -x $RUNNJOYPARALLEL ]] || RUNNJOYPARALLEL=$(find "$SCRIPTDIR" -name "run-njoy-parallel" -type f)
+[[ -x $RUNNJOYPARALLEL ]] || RUNNJOYPARALLEL=$(which run-njoy-parallel)
+[[ -x $RUNNJOYPARALLEL ]] || {>&2 echo -e "ERROR: could not find executable file 'run-njoy-parallel'"; exit 1;}
+RUNNJOYPARALLEL="$(realpath $RUNNJOYPARALLEL)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get run-mcnp-parallel from command line if given,
+# otherwise search for it in script folder.
+# Otherwise search for it in PATH.
+# If not present, exit with ERROR.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -x $RUNMCNPPARALLEL ]] || RUNMCNPPARALLEL=$(find "$SCRIPTDIR" -name "run-mcnp-parallel" -type f)
+[[ -x $RUNMCNPPARALLEL ]] || RUNMCNPPARALLEL=$(which run-mcnp-parallel)
+[[ -x $RUNMCNPPARALLEL ]] || {>&2 echo -e "ERROR: could not find executable file 'run-mcnp-parallel'"; exit 1;}
+RUNMCNPPARALLEL="$(realpath $RUNMCNPPARALLEL)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Check if xsdir file is present.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z ${POSITIONAL[0]} ]] && {>&2 echo -e "ERROR: Missing xsdir file XSDIR.\n$USAGE";exit 1;} || XSDIR="$(realpath ${POSITIONAL[0]})"
+[[ -s "$XSDIR" ]] || {>&2 echo -e "ERROR: empty or non-existing xsdir file '$XSDIR'.";exit 1;}
+[[ -f "$XSDIR" || -h "$XSDIR" ]] || {>&2 echo -e "ERROR: XSDIR must be a file or a symlink.";exit 1;}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Save list of ENDF-6 files.
+# Do not run any check, since run-njoy-parallel will do it.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+INPUT_LIST="${POSITIONAL[1]}"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Process the list of benchmark suites.
+# If the list is not set, use the default benchmarks.
+# Write 5 suites of benchmarks in text files in the current working directory.
+# If the list is set, check that all files exist and are not empty.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if [[ -z $BMARKS ]]
+then
+   find "/opt/lab/data/inputs/shielding/fns_tof" -maxdepth 1 -type f -o -type l > "list-shielding-fns_tof"
+   find "/opt/lab/data/inputs/shielding/fns_in_situ" -maxdepth 1 -type f -o -type l > "list-shielding-fns_in_situ"
+   find "/opt/lab/data/inputs/shielding/mcnp6_validation" -maxdepth 1 -type f -o -type l > "list-shielding-mcnp6_validation"
+   find "/opt/lab/data/inputs/shielding/oktavian" -maxdepth 1 -type f -o -type l > "list-shielding-oktavian"
+   find "/opt/lab/data/inputs/icsbep/nea" -maxdepth 1 -type f -o -type l > "list-icsbep-123"
+   BMARKS=("list-shielding-fns_tof" "list-shielding-fns_in_situ" "list-shielding-mcnp6_validation" "list-shielding-oktavian" "list-icsbep-123")
+else
+   for B in ${BMARKS[@]}
+   do
+      [[ -s "$B" ]] || {>&2 echo -e "ERROR: empty or non-existing MCNP benchmark suite file '$B'"; exit 1;}
+      [[ -f "$B" || -h "$B" ]] || {>&2 echo -e "ERROR: MCNP benchmark suite '$B' must be a file or a symlink.";exit 1;}
+      for file in $(sed '/^$/d' "$B"); do [[ -s "$file" ]] || {>&2 echo -e "ERROR: empty or non-existing MCNP input file '$file'";exit 1;}; done
+   done
+fi
+echo -e "MCNP input will be taken from the following benchmark lists:"
+for B in ${BMARKS[@]}; do  echo  " - $(realpath $B)"; done
+
+RUNJNOYFOLDER="$(pwd)/processing"
+if [[ ! -z $INPUT_LIST ]]
+then
+   INPUT_LIST="$(realpath $INPUT_LIST)"
+   mkdir -p $RUNJNOYFOLDER
+( cd $RUNJNOYFOLDER && $RUNNJOYPARALLEL "$INPUT_LIST" --xsdir "$XSDIR" $ACEONLY $NNJOY )
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                         RUN NJOY PROCESSING                         #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Skip NJOY calculations if INPUT_LIST is not set (no ENDF-6 file to be processed)
+# Run this part only if XSDIR is given.
+# Produce xsdir lines in parallel.
+# Each line is written in parallel to a temporary file.
+# When the parallel runs are finished, the content of the temporary 
+# file is appended to the xsdir before being deleted.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+RUNJNOYFOLDER="$(pwd)/processing"
+if [[ ! -z $INPUT_LIST ]]
+then
+   INPUT_LIST="$(realpath $INPUT_LIST)"
+   mkdir -p $RUNJNOYFOLDER
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Copy the xsdir to the current working directory.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   echo -e "\nCopy xsdir '$XSDIR' to '$RUNJNOYFOLDER/xsdir'."
+   cp -rf "$XSDIR" "$RUNJNOYFOLDER/xsdir" 2>/dev/null
+   XSDIR="$RUNJNOYFOLDER/xsdir"
+   ( cd $RUNJNOYFOLDER && $RUNNJOYPARALLEL "$INPUT_LIST" --xsdir "$XSDIR" $ACEONLY $NNJOY )
+   TMPXSDIR="$RUNJNOYFOLDER/.tmp.xsdir"
+   TMPACE="$RUNJNOYFOLDER/.tmp.ace"
+   rm -f "$TMPXSDIR" "$TMPACE" && touch "$TMPXSDIR" "$TMPACE"
+   export TMPXSDIR TMPACE
+   export -f run_xsdir
+   $PARALLEL run_xsdir {} ::: $(find $(pwd) -type f -name "*\.XSDIR")
+   ACEPATH="$RUNJNOYFOLDER/ACEs"
+   mkdir -p "$ACEPATH"
+   echo -e "\nInclude the following ace files for the MCNP benchmarking:"
+   while read -r line # I could use GNU parallel
+   do
+      echo "$ACEPATH/$(basename $line)"
+      ln -fs $line "$ACEPATH/$(basename $line)"
+   done < "$TMPACE"
+   echo -e "\nAdd/Replace the following lines to xsdir file '$XSDIR':"
+   while READ -R LINE # i COULD USE gnu PARALLEl
+   do
+      echo -e "$line"
+      PATTERN=$( echo "$line" | awk '{print $1}')
+      COUNT=$(grep -c "$PATTERN" "$XSDIR")
+      [[ $COUNT -eq 0 ]] && COMMAND="$COMMAND -e '$ a\ $line'" || COMMAND="$COMMAND -e 's|.*${PATTERN}.*|$line|g'"
+   done < "$TMPXSDIR"
+   [[ -z $COMMAND ]] || { COMMAND="sed -i $COMMAND $XSDIR"; eval "$COMMAND";}
+   rm -f "$TMPXSDIR" "$TMPACE"
+   export DATAPATH="$ACEPATH"
+fi
+
+
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                       RUN MCNP BENCHMARKING                         #
+#                                                                     #
+#######################################################################
+#######################################################################
+for B in ${BMARKS[@]}
+do
+   B="$(realpath $B)"
+   echo -e "\nCheck xsdir entries for benchmark suite in file '$B'..."
+   ISO=( $(grep -oh "^[^c].*[0-9]\{5\}\.03[cC]" "$B" | grep -o "[0-9]\{5\}\.03[cC]" | sort | uniq | cut -d. -f1) )
+   for iso in ${ISO[@]}
+   do
+      COUNT=$(grep -c "${iso}\.03[cC]" "$XSDIR")
+      [[ $COUNT -lt 1 ]] && {>&2 echo -e "ERROR: Missing entry for '${iso}.03c' in xsdir file.";EFLAG=1;}
+   done
+   [[ -z $EFLAG ]] || exit 1
+   echo -en "\e[1A"; echo -e "\e[0K\rAll requested xsdir entries for benchmark suite in file '$B' are present."
+   RUNMCNPFOLDER="$(pwd)/benchmarking/$(basename $B)"
+   mkdir -p $RUNMCNPFOLDER
+   (cd $RUNMCNPFOLDER && $RUNMCNPPARALLEL "$XSDIR" "$B" $NMCNP $TASKS )
+done
