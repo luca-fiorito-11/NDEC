@@ -13,17 +13,18 @@ do
    mv $f $FILE
 done
 
-for f in $(find ./jdev.nea.fr/ndecweb-alpha/view/ -maxdepth 1 -name "*html")
-do
-   sed -i "s~/ndecweb-alpha/files/~../files/~g" $f
-   #sed -i "s~index.ftl~index.html~g" $f
-   sed -i "s~index.ftl~lib.html~g" $f
-   sed -i "s|\.ftl.*?id=\([0-9]*\)|\1\.html|" $f
-done
 for f in $(find ./jdev.nea.fr/ndecweb-alpha/view/ndec-web/ -maxdepth 1 -name "*html")
 do
    sed -i "s~/ndecweb-alpha/files/~../../files/~g" $f
    #sed -i "s~index.ftl~index.html~g" $f
-   sed -i "s~index.ftl~lib.html~g" $f
+   sed -i "s~\./\.\./index.ftl~./../../lib.html~g" $f
    sed -i "s|\.ftl.*?id=\([0-9]*\)|\1\.html|" $f
 done
+
+f="./jdev.nea.fr/ndecweb-alpha/main.html"
+mv ./jdev.nea.fr/ndecweb-alpha/view/index.html $f
+sed -i "s~/ndecweb-alpha/files/~files/~g" $f
+sed -i "s~ndec-web~view/ndec-web~g" $f
+#sed -i "s~index.ftl~index.html~g" $f
+sed -i "s~index.ftl~lib.html~g" $f
+sed -i "s|\.ftl.*?id=\([0-9]*\)|\1\.html|g" $f
