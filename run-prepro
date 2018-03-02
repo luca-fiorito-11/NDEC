@@ -215,7 +215,6 @@ done
 [[ ${#POSITIONAL[@]} -eq 0 ]] && {>&2 echo -e "ERROR: missing positional argument \"FILE\"."; exit 1;}
 SEED="$(realpath ${POSITIONAL[0]})"
 [[ -s "$SEED" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED'."; exit 1;}
-printf "%-8s: %60s\n" "FILE" "$SEED"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set prefix.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -289,7 +288,7 @@ echo "<outputs>"
 [[ -s "ENDFB.IN" && ! -z $KEEPENDF ]] && { cp "$SEED" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
 [[ -s "ENDFB.OUT" ]] && { mv "ENDFB.OUT" "${PREFIX}.STD"; echo "<file id=\"std\" format=\"ENDF\">"${PREFIX}.STD"</file>"; }
 [[ -s "$OUT" ]] && echo "<file id=\"prepro_output\" format=\"TEXT\">${OUT}</file>"
-[[ -s "DICTIN.OUT" ]] && { mv "DICTIN.OUT" "${PREFIX}.PENDF"; echo "<file id=\"prepro_pendf\" format=\"PENDF\">${PREFIX}.PENDF</file>" ;}
+[[ -s "DICTIN.OUT" ]] && { mv "DICTIN.OUT" "${PREFIX}.PENDF"; echo "<file id=\"prepro_pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
 echo "</outputs>"
 } > "${PREFIX}-outputs.xml"
 rm -f *\.INP *\.IN *\.OUT *\.LST *\.TMP *\.STDOUT
