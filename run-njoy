@@ -564,7 +564,7 @@ $MAT $TEMPS/ matd, tempd
 -- 
 acer / Check ACE files
 0 91 60 0 0 /
-7 1 1 -1 / iopt='7: read type 1 ace files to print or edit', iprint='1: max', itype, suff<0, nxtra=0
+7 0 1 -1 / iopt='7: read type 1 ace files to print or edit', iprint='1: max', itype, suff<0, nxtra=0
 ''/
 viewr /
 60 62 /
@@ -605,7 +605,7 @@ moder
 groupr /
 -21 -29 0 93/ 
 $MAT 1 0 2 6 $NTEMP $NSIG 1 /
-' GENDF file produced at  NEA with NDEC '/
+' ERRORR file produced at  NEA with NDEC '/
 $TEMPS
 $SIGS
 $NGROUP /

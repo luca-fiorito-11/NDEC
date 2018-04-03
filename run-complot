@@ -1,0 +1,316 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: run-complot
+#
+# USAGE: run-complot FILE [OPTIONS]
+#
+# DESCRIPTION: 
+#
+# OPTIONS: see function ’usage’ below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 03.04.2018
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+CODE=$(basename $0)
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SEED="$1"
+
+USAGE="Usage:
+
+$CODE  FILE1  FILE2  [options]
+
+
+POSITIONAL ARGUMENTS
+--------------------
+
+FILE1                       First input ENDF-6 file.
+
+FILE2                       First input ENDF-6 file.
+
+
+KEYWORD ARGUMENTS
+-----------------
+
+-h|--help                   Print the help text.
+
+--prefix  PREFIX            Set the output prefix PREFIX.
+                            output files are named \"PREFIX.[extension]\".
+                            Prefix must be one word and not contain reserved characters.
+                            (default is \"prepro\")
+
+-m|--messages               Parse the PREPRO output file for warnings and errors.
+                            The messages are reported in a xml file.
+"
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                           FUNCTIONS                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+GetMessages () {
+#=== FUNCTION =========================================================
+# NAME: GetMessages
+# DESCRIPTION: Extract warning/error messages from COMPLOT.LST output
+#              and COMPLOT.STDOUT and print them in xml format as:
+#
+#              <messages>
+#               <warning module="%s" lines="%s"><![CDATA[ %s ]]></warning>
+#               <error module="%s" lines="%s"><![CDATA[ %s ]]></error>
+#              <messages>
+#
+#              "lines" is always empty.
+#
+# PARAMETER 1: module name in lowercase
+#======================================================================
+module="$1"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# XML patterns for warning and error messages.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+WARN="<warning module=\"%s\" lines=\"\"><![CDATA[ %s ]]></warning>\n"
+ERR="<error module=\"%s\" lines=\"\"><![CDATA[ %s ]]></error>\n"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse for errors.
+# Parse files .LST and .STDOUT
+# Do not skip any error exception (for the moment).
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'ERROR' | while read line;
+do
+   printf "$ERR" "$module" "$line"
+done
+[[ -s "${module^^}.STDOUT" ]] && sed "s/^[ \t]*//" "${module^^}.STDOUT" | grep -i 'ERROR' | while read line;
+do
+   printf "$ERR" "$module" "$line"
+done
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Parse for warnings.
+# Parse files .LST and .STDOUT
+# Do not skip any warning exception (for the moment).
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -s "${module^^}.LST" ]] && sed "s/^[ \t]*//" "${module^^}.LST" | grep -i 'WARNING' | while read line;
+do
+   printf "$WARN" "$module" "$line"
+done
+[[ -s "${module^^}.SDTOUT" ]] && sed "s/^[ \t]*//" "${module^^}.STDOUT" | grep -i 'WARNING' | while read line;
+do
+   printf "$WARN" "$module" "$line"
+done
+}
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PARSE COMMAND LINE ARGUMENTS                     #
+#                                                                     #
+#######################################################################
+#######################################################################
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+    -h|--help) # print USAGE and exit with status 0
+    echo -e "$USAGE"
+    exit 0
+    ;;
+    --prefix)
+    PREFIX="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -l1|--label1)
+    LABEL1="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -l2|--label2)
+    LABEL2="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -m|--messages)
+    MESSAGES=1
+    shift # past argument
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          PROCESS INPUTS                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Get SEED (ENDF-6 file) from the list of positional arguments
+# in the command line.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ ${#POSITIONAL[@]} -eq 0 ]] && {>&2 echo -e "ERROR: missing positional argument \"FILE1\"."; exit 1;}
+SEED1="$(realpath ${POSITIONAL[0]})"
+[[ -s "$SEED1" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED1'."; exit 1;}
+[[ ${#POSITIONAL[@]} -eq 1 ]] && {>&2 echo -e "ERROR: missing positional argument \"FILE2\"."; exit 1;}
+SEED2="$(realpath ${POSITIONAL[1]})"
+[[ -s "$SEED2" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED2'."; exit 1;}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set prefix.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $PREFIX ]] && PREFIX="complot"
+
+# Input is taken from the best input parameters section on the IAEA website
+INPUT="   0.0        12.5       0.0         10.0             1          1 2.0
+COMPLOT.IN1
+COMPLOT.IN2
+          0          0          0          0          4          1   1
+ 1.0000d-03
+${LABEL1:-FILE1}
+${LABEL2:-FILE2}
+     1 1  1             999999999                     0          0
+
+
+
+ 
+=== This and the below lines are NOT read as input, so you can store ===
+=== anything you want below. Here I have defined how the input data  ===
+=== is interpreted = so you know what each input field means.        ===
+ -------------------------------------------------------------------------------
+ Description of Plotter and Frame Layout
+ -------------------------------------------------------------------------------
+ Plotter X Dimensions----------     0.0000 to     13.5000
+ Plotter Y Dimensions----------     0.0000 to     10.0000
+ Plots per Frame (X by Y)------          1 by           1
+ Character Size Multiplier-----       2.00
+ Plot Orientation-------------- X Horizontal/Y Vertical
+ -------------------------------------------------------------------------------
+ Data Filenames
+ -------------------------------------------------------------------------------
+ Data1=COMPLOT.IN1
+ Data2=COMPLOT.IN2
+ -------------------------------------------------------------------------------
+ Retrieval Criteria------------        MAT
+ Grid Type---------------------Tick Marks
+ Border on Plots---------------         No
+ Line Thickness----------------          0
+ Plot Mode--------------------- Cross Section Plus Cross Section Over Ratio
+ Starting Plot Number----------          1
+ On Screen Background Color----White
+ -------------------------------------------------------------------------------
+ Maximum Difference for Plots-- 0.1000D-02 ( 0.1000D+00 %)
+ Maximum Ratio on Plots--------   No Limit
+ -------------------------------------------------------------------------------
+ Data Identifications
+ -------------------------------------------------------------------------------
+ Data1= NJOY-2016
+ Data2= PREPRO-2017
+ -------------------------------------------------------------------------------
+ Request Ranges
+ -------------------------------------------------------------------------------
+          Mimimum                     Maximum                Identify   Interact
+     MAT MF  MT    Energy-eV      MAT MF  MT    Energy-eV    POINTS
+ -------------------------------------------------------------------------------
+       1  1   1   0.00000+ 0     9999 99 999   1.00000+12       No       Yes
+ -------------------------------------------------------------------------------
+ Equivalence List
+ -------------------------------------------------------------------------------
+ Master  ZA MF  MT   Second  ZA MF  MT  Multiplier
+ -------------------------------------------------------------------------------
+
+ -------------------------------------------------------------------------------"
+
+
+
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          RUN PREPRO                                 #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Run in subshell, exit if module fails
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+echo -e "$INPUT" > "COMPLOT.INP"
+ln -sf "$SEED1" "COMPLOT.IN1"
+ln -sf "$SEED2" "COMPLOT.IN2"
+ln -sf "$SCRIPTDIR/PREPRO_2017/MT.DAT" "MT.DAT"
+ln -sf "$SCRIPTDIR/PREPRO_2017/PLOT.CHR" "PLOT.CHR"
+ln -sf "$SCRIPTDIR/PREPRO_2017/PLOT.SYM" "PLOT.SYM"
+(
+set -e
+"$SCRIPTDIR/PREPRO_2017/comhard1"
+) 2>&1 | tee "COMPLOT.STDOUT"
+EXIT_STATUS=$?
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Retrieve exit status. If False, append error message to 
+# .STDOUT and exit with same exit status.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ $EXIT_STATUS -eq 0 && -s "PLOT0001.ps" ]] || echo "ERROR complot failed to run"| tee -a "COMPLOT.STDOUT"
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          ERROR MESSAGES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+[[ -z $MESSAGES ]] || {
+echo "<messages>"
+GetMessages "complot"
+echo "</messages>"
+} > ${PREFIX}-messages.xml
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                    PROCESS OUTPUT FILES                             #
+#                                                                     #
+#######################################################################
+#######################################################################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Rename outputs and write list of produced output files (use xml format).
+# Use agreed elements and attributes defined in the NDEC documentation.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{
+echo "<outputs>"
+[[ -s "COMPLOT.LST" ]] && { mv "COMPLOT.LST" "${PREFIX}.output"; echo "<file id=\"complot_output\" format=\"TEXT\">${PREFIX}.output</file>" ;}
+[[ -s "PLOT0001.ps" ]] && { ps2pdf "PLOT0001.ps" "${PREFIX}.pdf"; echo "<file id=\"complot_pdf\" format=\"PDF\">${PREFIX}.pdf</file>" ;}
+echo "</outputs>"
+} > "${PREFIX}-outputs.xml"
+rm -f COMPLOT.IN1 COMPLOT.IN2 PLOT0001.ps MT.DAT PLOT.CHR PLOT.SYM COMPLOT.STDOUT
+
+
+
+#######################################################################
+#######################################################################
+#                                                                     #
+#                          EXIT WITH FAILURE                          #
+#                                                                     #
+#######################################################################
+#######################################################################
+[[ $EXIT_STATUS -ne "0" ]] && exit $EXIT_STATUS
