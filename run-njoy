@@ -112,6 +112,18 @@ KEYWORD ARGUMENTS
                             VAL1 to VALN are NSIG sigma0 values.
                             (default is [1E10 1E4 1E3 1E2 1E1 1E0])
 
+--iwt  IWT                  Set the weighting function for GROUPR and ERRORR:
+                               2  : constant
+                               3  : 1/e
+                               5  : epri-cell lwr
+                               6  : (thermal) -- (1/e) -- (fission + fusion)
+                               7  : same with t-dep thermal part
+                               8  : thermal--1/e--fast reactor--fission + fusion
+                               9  : claw weight function
+                               10 : claw with t-dependent thermal part
+                               11 : vitamin-e weight function (ornl-5505)
+                               12 : vit-e with t-dep thermal part
+
 --prefix  PREFIX            Set the output prefix PREFIX.
                             output files are named \"PREFIX.[extension]\".
                             Prefix must be one word and not contain reserved characters.
@@ -288,6 +300,11 @@ case $key in
     ;;
     --temp)
     TEMPS="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --iwt)
+    IWT="$2"
     shift # past argument
     shift # past value
     ;;
@@ -527,7 +544,7 @@ $TEMPS /
 -- 
 groupr /
 -21 -28 0 93/ nendf, npendf, ngout1, ngout2
-$MAT 1 0 2 6 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt (2=constant), lord, mtemp, nsigz, iprint (0=min)
+$MAT 1 0 ${IWT-"2"} 6 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt (2=constant), lord, mtemp, nsigz, iprint (0=min)
 '$ISO GENDF-238g, $NJOYVER, at NEA on $DATE'/
 $TEMPS /
 $SIGS /
@@ -629,7 +646,7 @@ moder
 -- 
 errorr
 -21 0 93 94 0 / nendf, npend, ngout, nout, nin, nstan
-$MAT 1 2 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
+$MAT 1 ${IWT-"2"} 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
 1  $TEMPS / mprint (0=min), tempin
 0 33 / iread, mfcov, irespr=1 
 $NGROUP /
