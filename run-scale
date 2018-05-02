@@ -1,0 +1,56 @@
+#!/bin/bash
+#===============================================================================
+#
+# FILE: run-ampx
+#
+# USAGE: run-njoy FILE [options]
+#
+# DESCRIPTION: 
+#
+# OPTIONS: see function ’usage’ below
+# REQUIREMENTS: ---
+# BUGS: ---
+# NOTES: ---
+# AUTHOR: Luca Fiorito, luca.fiorito@oecd.org
+# COMPANY: OECD/NEA
+# VERSION: ---
+# CREATED: 26.03.2017
+# REVISION: ---
+#===============================================================================
+
+#################
+# Default options
+#################
+export SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"                  # Directory of this script
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# parallel is a shell tool for executing jobs in parallel.
+# OPTIONS:
+#   --no-run-if-empty: skip empty lines in input files
+#   -j $NJOBS: run a maximum of $NJOBS in parallel
+#   --joblog $JOBLOG: write logs in file $JOBLOG
+#   --linebuffer: do not postpone the stdout when
+#                 command completes
+#   --dryrun: show commands but do not run
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#DRYRUN="--dryrun"
+PARALLEL="parallel --no-run-if-empty -j ${NJOBS-60} --linebuffer ${DRYRUN}"
+export WDIR=$(pwd)
+export SCALE="/nfs/lab/programs/SCALE6.2.2/C834NYCP03-ADD.PATCH/SCALE-6.2.2/bin/scalerte"
+
+
+run_scale_job () {
+JOB=$1
+NAME=${JOB##*/}
+NAME_NOSUFFIX=${NAME%.*}
+printf "\nJob '%s' has started at %s\n" $NAME $(date +"%T")
+$SCALE -T $WDIR/tmp_$NAME_NOSUFFIX $JOB
+EXIT_STATUS=$?
+printf "\nJob '%s' has finished at %s with EXIT_STATUS=%s\n" $NAME $(date +"%T") $EXIT_STATUS
+grep -B 1 -A1 error ${NAME_NOSUFFIX}.out
+#tail -50 $WDIR/${NAME_NOSUFFIX}.out | grep "PURM_UP has terminated normally" && rm -rf $WDIR/tmp_$NAME_NOSUFFIX $WDIR/${NAME_NOSUFFIX}.out || echo "problem found in  file ${NAME_NOSUFFIX}.out"
+rm -rf $WDIR/tmp_$NAME_NOSUFFIX # $WDIR/${NAME_NOSUFFIX}.out
+}
+
+export -f run_scale_job
+find $WDIR -name "mg_lat_293_*.inp" | $PARALLEL run_scale_job {}
+exit
