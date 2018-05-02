@@ -13,7 +13,7 @@
 #                                      heatr - viewr - heatr - gapsr - thermr -
 #                                      purr - moder - acer - acer - viewr
 #
-# OPTIONS: see function ’usage’ below
+# OPTIONS: see function 'usage' below
 # REQUIREMENTS: ---
 # BUGS: ---
 # NOTES: ---
@@ -412,11 +412,20 @@ SEED="$(realpath ${POSITIONAL[0]})"
 [[ -s "$SEED" ]] || {>&2 echo -e "ERROR: incorrect ENDF-6 file '$SEED'."; exit 1;}
 printf "%-8s: %60s\n" "FILE" "$SEED"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set date.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+DATE=$(date +%Y-%m-%d)
+printf "%-8s: %60s\n" "DATE" "$DATE"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Once the SEED is set extract its MAT number and set the prefix.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 MAT=$(getMAT "$SEED")
 [[ -z $PREFIX ]] && PREFIX=$MAT
 printf "%-8s: %60s\n" "PREFIX" "$PREFIX"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Extract isotope name.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ISO=$(sed -n '6p' U235.ENDF | cut -c1-11)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Get njoy executable from command line if given,
 # otherwise search for it in script folder.
@@ -430,6 +439,8 @@ printf "%-8s: %60s\n" "PREFIX" "$PREFIX"
 [[ -x $NJOY ]] || {>&2 echo -e "ERROR: could not find njoy executable file. Consider using option \"--njoy\""; exit 1;}
 NJOY="$(realpath $NJOY)"
 printf "%-8s: %60s\n" "NJOY" "$NJOY"
+NJOYVER=$(${NJOY} </dev/null 2>/dev/null |grep -i njoy |cut -b 2-15 | xargs)
+printf "%-8s: %60s\n" "VERSION" "${NJOYVER}"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set temperature values.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -482,7 +493,7 @@ printf "%-8s: %60s\n" "FILENAME" "$FILENAME"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set hendf option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-printf "%-8s: %60s\n" "HENDF" "$([[ -z $MESSAGES ]] && echo False || echo True)"
+printf "%-8s: %60s\n" "HENDF" "$([[ -z $HENDF ]] && echo False || echo True)"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Extract broadr parameter thnmax using Nicolas' java scripts.
 # Use the upper limit of URR when given (with negative sign to 
@@ -507,7 +518,7 @@ INPUT="--
 -- 
 moder /
 1 -21 / nin, nout (nin=1 is a flag to select various materials from one or more input tapes)
-'Extract MAT=$MAT '/ tpid = tapeid for nout. 66 characters allowed
+'$ISO ENDF file, at NEA on $DATE'/ tpid = tapeid for nout. 66 characters allowed
 20 $MAT / nin=input unit, matd=material on this tape to add to nout
 0/
 moder /
