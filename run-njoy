@@ -115,6 +115,10 @@ KEYWORD ARGUMENTS
 --toler  TOLER              Set the reconstruction tolerance used in RECONR, BROADR and THERMR.
                             (default is TOLER=0.005)
 
+--efmean  EFMEAN            Set the incident neutron energy (eV) to process the MF35 covariances 
+                            with ERRORR.
+                            (default is EFMEAN=1.0E6 eV)
+
 --iwt  IWT                  Set the weighting function for GROUPR and ERRORR.
                             (default is IWT=2)
                                2  : constant
@@ -333,6 +337,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    --efmean)
+    EFMEAN="$2"
+    shift # past argument
+    shift # past value
+    ;;
     --sig0)
     NSIG="$2"
     SIGS=""
@@ -448,6 +457,11 @@ printf "%-8s: %60s\n" "NBIN" "$NBIN"
 [[ -z $NLADR ]] && NLADR='64'
 printf "%-8s: %60s\n" "NLADR" "$NLADR"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set efmean.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $EFMEAN ]] && EFMEAN='1e6'
+printf "%-8s: %60s\n" "EFMEAN" "$EFMEAN"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set covr option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 printf "%-8s: %60s\n" "COVR" "$([[ -z $ERRORR ]] && echo False || echo True)"
@@ -496,6 +510,8 @@ moder /
 'Extract MAT=$MAT '/ tpid = tapeid for nout. 66 characters allowed
 20 $MAT / nin=input unit, matd=material on this tape to add to nout
 0/
+moder /
+-21 50 / 
 -- 
 -- *********************************************************
 -- Reconstruct XS from resonance parameters.
@@ -600,15 +616,16 @@ $SIGS /
 $NGROUP /
 $GROUPAS /
 3/
-3  221 Free Gas/ 
-3  251 mubar/ Average elastic scattering cosine  computed from File 4
-3  252 xi/ Continuous-slowing-down parameter  computed from File 4
-3  253 gamma/ Continuous-slowing-down parameter computed from File 4
-3  259 1v / Average inverse neutron velocity for group in s/m $(
-[[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
+3 221 Free Gas/ 
+3 251 mubar/ Average elastic scattering cosine  computed from File 4
+3 252 xi/ Continuous-slowing-down parameter  computed from File 4
+3 253 gamma/ Continuous-slowing-down parameter computed from File 4
+3 259 1v / Average inverse neutron velocity for group in s/m 
+$([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
 [[ `countMFMT $SEED 1 455` -ne 0 ]] && echo "3 455 delayed_nubar/"
 [[ `countMFMT $SEED 1 456` -ne 0 ]] && echo "3 456 prompt_nubar/"
-[[ `countMFMT $SEED 5 455` -ne 0 ]] && echo "5 455 delayed_neutron_spectrum/")
+[[ `countMFMT $SEED 5 455` -ne 0 ]] && echo "5 455 delayed_spc/"
+[[ `countMFMT $SEED 5  18` -ne 0 ]] && echo "5 18 fission_spc/")
 6/
 6 221 Free Gas /
 0/
@@ -657,8 +674,7 @@ acer / Check ACE files
 ''/
 viewr /
 60 62 /
-$([[ -z $ERRORR ]] || echo -e "--
-$([[ `countMF $SEED 32` -ne 0 && `countMF $SEED 33` -eq 0 ]] && echo -e "-- 
+$([[ ! -z $ERRORR && `countMF $SEED 32` -ne 0 && `countMF $SEED 33` -eq 0 ]] && echo -e "-- 
 -- *********************************************************
 -- If covariance file MF32 is present without MF33, use 
 -- ERRORR to add dummy MF33 data for:
@@ -683,10 +699,11 @@ errorr
 102 /
 0 / terminate mt list with zero
 moder
-41 -21" || echo "-- ")
--- 
+41 -21")
+$([[ ! -z $ERRORR && `countMF $SEED 33` -ne 0 ]] && 
+echo -e "-- 
 -- *********************************************************
--- Produce ERRORR file in tape94.
+-- Produce ERRORR for MF33 file in tape83.
 -- Covariances are processed on the SCALE 238-group structure 
 -- and printed in relative values.
 -- Use 1% sensitivity method for processing of resonance 
@@ -694,34 +711,106 @@ moder
 -- *********************************************************
 -- 
 errorr
--21 0 93 94 0 / nendf, npend, ngout, nout, nin, nstan
+-21 0 93 83 0 / nendf, npend, ngout, nout, nin, nstan
 $MAT 1 $IWT 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
-1  $TEMPS / mprint (0=min), tempin
-0 31 / iread, mfcov, irespr=1 
+0 $TEMPS / mprint (0=min), tempin
+0 33 / iread, mfcov, irespr=1 
 $NGROUP /
 $GROUPAS
-$([[ `countMF $SEED 32` -ne 0 || `countMF $SEED 33` -ne 0 ]] && echo -e "-- 
+-- 
 -- *********************************************************
--- Produce BOXER file in tape95
+-- Produce BOXER file in tape73
 -- PS file is in tape 63
 -- *********************************************************
 -- 
 covr
-94 95 0/ nin, nout, nplot
+83 73 0/ nin, nout, nplot
 / matype=3 (covariances), ncase=1
 'LIB' / hlibid=\'up to 6 characters for identification'
-' in BOXER format ' / hdescr='up to 21 characters of descriptive information'
+'in BOXER format ' / hdescr='up to 21 characters of descriptive information'
 $MAT / mat, mt=0, mat1=0, mt1=0
 covr
-94 0 45 / nin, nout, nplot
+83 0 45 / nin, nout, nplot
+1  / icolor
+0. / epmin
+1 1 0 1 1 / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
+$MAT / mat, mt=0, mat1=0, mt1=0
+viewr
+45 63")
+$([[ ! -z $ERRORR && `countMF $SEED 31` -ne 0 ]] && 
+echo -e "-- 
+-- *********************************************************
+-- Produce ERRORR for MF31 file in tape81.
+-- Covariances are processed on the SCALE 238-group structure 
+-- and printed in relative values.
+-- Use 1% sensitivity method for processing of resonance 
+-- parameter covariances.
+-- *********************************************************
+-- 
+errorr
+-21 0 93 81 0 / nendf, npend, ngout, nout, nin, nstan
+$MAT 1 $IWT 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
+0 $TEMPS / mprint (0=min), tempin
+0 31 / iread, mfcov, irespr=1 
+$NGROUP /
+$GROUPAS
+-- 
+-- *********************************************************
+-- Produce BOXER file in tape71
+-- PS file is in tape 61
+-- *********************************************************
+-- 
+covr
+81 71 0/ nin, nout, nplot
+/ matype=3 (covariances), ncase=1
+'LIB' / hlibid='up to 6 characters for identification'
+'in BOXER format ' / hdescr='up to 21 characters of descriptive information'
+$MAT / mat, mt=0, mat1=0, mt1=0
+covr
+81 0 45 / nin, nout, nplot
 1  / icolor
 0. / epmin
 1  / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
 $MAT / mat, mt=0, mat1=0, mt1=0
 viewr
-45 63" || echo "-- "
-) 
-")
+45 61")
+$([[ ! -z $ERRORR && `countMF $SEED 35` -ne 0 ]] && 
+echo -e "-- 
+-- *********************************************************
+-- Produce ERRORR for MF35 file in tape85.
+-- Covariances are processed on the SCALE 238-group structure 
+-- and printed in relative values.
+-- Use 1% sensitivity method for processing of resonance 
+-- parameter covariances.
+-- *********************************************************
+-- 
+errorr
+50 0 93 85 0 / nendf (must be >0), npend, ngout, nout, nin, nstan
+$MAT 1 $IWT 0 1 $EFMEAN/ matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
+0 $TEMPS / mprint (0=min), tempin
+0 35 1 1 -1 / iread, mfcov, irespr, legord, ifissp, efmean, dap 
+$NGROUP /
+$GROUPAS
+-- 
+-- *********************************************************
+-- Produce BOXER file in tape75
+-- PS file is in tape 65
+-- *********************************************************
+-- 
+covr
+85 75 0/ nin, nout, nplot
+/ matype=3 (covariances), ncase=1
+'LIB' / hlibid=\'up to 6 characters for identification'
+'in BOXER format ' / hdescr='up to 21 characters of descriptive information'
+$MAT / mat, mt=0, mat1=0, mt1=0
+covr
+85 0 45 / nin, nout, nplot
+1  / icolor
+0. / epmin
+1  / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
+$MAT / mat, mt=0, mat1=0, mt1=0
+viewr
+45 65")
 stop"
 
 
@@ -856,19 +945,26 @@ fi
 echo "<outputs>"
 mv "output" "${PREFIX}.output"; echo "<file id=\"njoy_output\" format=\"TEXT\">${PREFIX}.output</file>"
 echo "<file id=\"njoy_input\" format=\"TEXT\">${PREFIX}.input</file>"
-[[ -s "tape20" && ! -z $KEEPENDF ]] && { cp "$SEED" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
+[[ -s "tape50" && ! -z $KEEPENDF ]] && { cp "tape50" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
 [[ -s "tape90" ]] && { mv "tape90" "${PREFIX}.PENDF" ; echo "<file id=\"pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
 [[ -s "${PREFIX}.HENDF" ]] && { echo "<file id=\"hendf\" format=\"ENDF\">${PREFIX}.HENDF</file>" ;}
 [[ -s "tape91" ]] && { mv "tape91" "${PREFIX}.ACE"; echo "<file id=\"ace\" format=\"ACE\">${PREFIX}.ACE</file>" ;}
 [[ -s "tape92" ]] && { mv "tape92" "${PREFIX}.XSDIR"; echo "<file id=\"xsdir\" format=\"TEXT\">${PREFIX}.XSDIR</file>" ;}
 [[ -s "tape93" ]] && { mv "tape93" "${PREFIX}.GENDF"; echo "<file id=\"gendf\" format=\"GENDF\">${PREFIX}.GENDF</file>" ;}
-[[ -s "tape95" ]] && { mv "tape95" "${PREFIX}.BOXER"; echo "<file id=\"boxer\" format=\"BOXER\">${PREFIX}.BOXER</file>" ;}
-# Case when there is a problem in ERRORR
-[[ ! -s "${PREFIX}.BOXER" &&  -s "${PREFIX}.ERRORR" ]] && rm "tape94"
-[[ -s "tape94" ]] && { mv "tape94" "${PREFIX}.ERRORR"; echo "<file id=\"errorr\" format=\"ERRORR\">${PREFIX}.ERRORR</file>" ;}
 [[ -s "tape61" ]] && { ps2pdf "tape61" "${PREFIX}_HEATR.pdf"; echo "<file id=\"heatr_pdf\" format=\"PDF\">${PREFIX}_HEATR.pdf</file>" ;}
 [[ -s "tape62" ]] && { ps2pdf "tape62" "${PREFIX}_ACE.pdf"; echo "<file id=\"ace_pdf\" format=\"PDF\">${PREFIX}_ACE.pdf</file>" ;}
-[[ -s "tape63" ]] && { ps2pdf "tape63" "${PREFIX}_BOXER.pdf"; echo "<file id=\"boxer_pdf\" format=\"PDF\">${PREFIX}_BOXER.pdf</file>" ;}
+# ERRORR FILES
+[[ -s "tape83" ]] && { mv "tape83" "${PREFIX}.ERRORR_MF33"; echo "<file id=\"errorr33\" format=\"ERRORR\">${PREFIX}.ERRORR_MF33</file>" ;}
+[[ -s "tape85" ]] && { mv "tape85" "${PREFIX}.ERRORR_MF35"; echo "<file id=\"errorr35\" format=\"ERRORR\">${PREFIX}.ERRORR_MF35</file>" ;}
+[[ -s "tape81" ]] && { mv "tape81" "${PREFIX}.ERRORR_MF31"; echo "<file id=\"errorr31\" format=\"ERRORR\">${PREFIX}.ERRORR_MF31</file>" ;}
+# BOXER FILES
+[[ -s "tape73" ]] && { mv "tape73" "${PREFIX}.BOXER_MF33"; echo "<file id=\"boxer33\" format=\"BOXER\">${PREFIX}.BOXER_MF33</file>" ;}
+[[ -s "tape75" ]] && { mv "tape75" "${PREFIX}.BOXER_MF35"; echo "<file id=\"boxer35\" format=\"BOXER\">${PREFIX}.BOXER_MF35</file>" ;}
+[[ -s "tape71" ]] && { mv "tape71" "${PREFIX}.BOXER_MF31"; echo "<file id=\"boxer31\" format=\"BOXER\">${PREFIX}.BOXER_MF31</file>" ;}
+# BOXER PDF FILES
+[[ -s "tape63" ]] && { ps2pdf "tape63" "${PREFIX}_BOXER_MF33.pdf"; echo "<file id=\"boxer33_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF33.pdf</file>" ;}
+[[ -s "tape65" ]] && { ps2pdf "tape65" "${PREFIX}_BOXER_MF35.pdf"; echo "<file id=\"boxer35_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF35.pdf</file>" ;}
+[[ -s "tape61" ]] && { ps2pdf "tape61" "${PREFIX}_BOXER_MF31.pdf"; echo "<file id=\"boxer31_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF31.pdf</file>" ;}
 echo "</outputs>"
 } > "${PREFIX}-outputs.xml"
 rm -f "tape"*
