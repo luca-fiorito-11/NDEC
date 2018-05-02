@@ -643,6 +643,47 @@ $([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
 0/
 -- 
 -- *********************************************************
+-- Calculate resonance integral.
+-- Use 1/E spectrum between 0.5 eV and 1.0E5 eV.
+-- *********************************************************
+-- 
+groupr
+-21 -28 0 51/
+$MAT 1 0 3 0 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
+'$ISO GENDF IWT=1/E, $NJOYVER, at NEA on $DATE'/
+$TEMPS /
+$SIGS /
+1 /
+0.5 1e5 /
+3 1/
+3 2/
+3 18/
+3 102/
+0/
+0/
+--
+-- *********************************************************
+-- Calculate Maxwellian integral.
+-- Use thermal Maxwellian spectrum between 1.0E-5 eV and 10 eV.
+-- *********************************************************
+--
+groupr
+-21 -28 0 52/
+$MAT 1 0 4 0 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
+'$ISO GENDF IWT=Maxwellian, $NJOYVER, at NEA on $DATE'/
+$TEMPS /
+$SIGS /
+1 /
+1e-5 10 /
+10 0.025 820.3E+03 1.4E+06 / eb, tb, ec, tc
+3 1/
+3 2/
+3 18/
+3 102/
+0/
+0/
+-- 
+-- *********************************************************
 -- Process Unresolved Resonance Region (URR) if any.
 -- Generate PTables for MCNP
 -- By default, use 20 probability bins and 64 resonance ladders
@@ -747,7 +788,36 @@ covr
 1 1 0 1 1 / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
 $MAT / mat, mt=0, mat1=0, mt1=0
 viewr
-45 63")
+45 63
+--
+-- *********************************************************
+-- Calculate resonance integral uncertainty.
+-- *********************************************************
+-- 
+errorr
+-21 -29 0 53 0 / nendf, npend, ngout, nout, nin, nstan
+$MAT 1 3 0 1 / matd, ign (1=arbitrary structure), iwt (3=1/E), iprint (0=min), irelco (1=rel)
+0 $TEMPS / mprint (0=min), tempin
+1 33 / iread, mfcov, irespr=1
+4/
+1 2 18 102/
+1/
+0.5 1e5/
+--
+-- *********************************************************
+-- Calculate Maxwellian integral uncertainty.
+-- *********************************************************
+-- 
+errorr
+-21 -29 0 54 0 / nendf, npend, ngout, nout, nin, nstan
+$MAT 1 4 0 1 / matd, ign (1=arbitrary structure), iwt (Maxwellian), iprint (0=min), irelco (1=rel)
+0 $TEMPS / mprint (0=min), tempin
+1 33 / iread, mfcov, irespr=1
+4/
+1 2 18 102/
+1/
+1e-5 10/
+10 0.025 820.3E+03 1.4E+06 / eb, tb, ec, tc")
 $([[ ! -z $ERRORR && `countMF $SEED 31` -ne 0 ]] && 
 echo -e "-- 
 -- *********************************************************
@@ -836,6 +906,7 @@ stop"
 mkdir -p "$WDIR"
 ln -sf "$SEED" "tape20"							# Link seed to tape20
 echo -e "$INPUT" > "${PREFIX}.input"					# Write input file
+exit
 cat ${PREFIX}.input | timeout -s SIGABRT "$TIMEOUT" "$NJOY" 2>&1 |tee "${PREFIX}.stderr" # Actual NJOY run
 EXIT_STATUS=${PIPESTATUS[1]}
 FAIL_MSG="NJOY FAILED TO RUN WITH EXIT STATUS $EXIT_STATUS"
@@ -976,6 +1047,7 @@ echo "<file id=\"njoy_input\" format=\"TEXT\">${PREFIX}.input</file>"
 [[ -s "tape63" ]] && { ps2pdf "tape63" "${PREFIX}_BOXER_MF33.pdf"; echo "<file id=\"boxer33_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF33.pdf</file>" ;}
 [[ -s "tape65" ]] && { ps2pdf "tape65" "${PREFIX}_BOXER_MF35.pdf"; echo "<file id=\"boxer35_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF35.pdf</file>" ;}
 [[ -s "tape61" ]] && { ps2pdf "tape61" "${PREFIX}_BOXER_MF31.pdf"; echo "<file id=\"boxer31_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF31.pdf</file>" ;}
+#INTEGRALS
 echo "</outputs>"
 } > "${PREFIX}-outputs.xml"
 rm -f "tape"*
