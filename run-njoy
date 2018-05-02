@@ -112,7 +112,8 @@ KEYWORD ARGUMENTS
                             VAL1 to VALN are NSIG sigma0 values.
                             (default is [1E10 1E4 1E3 1E2 1E1 1E0])
 
---iwt  IWT                  Set the weighting function for GROUPR and ERRORR:
+--iwt  IWT                  Set the weighting function for GROUPR and ERRORR.
+                            (default is IWT=2)
                                2  : constant
                                3  : 1/e
                                5  : epri-cell lwr
@@ -123,6 +124,12 @@ KEYWORD ARGUMENTS
                                10 : claw with t-dependent thermal part
                                11 : vitamin-e weight function (ornl-5505)
                                12 : vit-e with t-dep thermal part
+
+--nbin  NBIN                Set the number of probability bins for PURR.
+                            (default is NBIN=20)
+
+--nladr  NLADR              Set the number of resonance ladders for PURR.
+                            (default is NLADR=64)
 
 --prefix  PREFIX            Set the output prefix PREFIX.
                             output files are named \"PREFIX.[extension]\".
@@ -308,6 +315,16 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    --nbin)
+    NBIN="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --nladr)
+    NLADR="$2"
+    shift # past argument
+    shift # past value
+    ;;
     --sig0)
     NSIG="$2"
     SIGS=""
@@ -402,6 +419,21 @@ printf "%-8s: %60s\n" "NJOY" "$NJOY"
 NTEMP=1								# Number of temperatures
 [[ -z $TEMPS ]] && TEMPS='293.6'				# String with temperature values to process
 printf "%-8s: %60s\n" "TEMP" "$TEMPS"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set weighting function.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $IWT ]] && IWT='2'
+printf "%-8s: %60s\n" "IWT" "$IWT"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set probability bins.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $NBIN ]] && NBIN='20'
+printf "%-8s: %60s\n" "NBIN" "$NBIN"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set resonance ladders.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $NLADR ]] && NLADR='64'
+printf "%-8s: %60s\n" "NLADR" "$NLADR"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set covr option.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -568,12 +600,12 @@ $GROUPAS /
 -- *********************************************************
 -- Process Unresolved Resonance Region (URR) if any.
 -- Generate PTables for MCNP
--- Use 20 probability bins and 64 resonance ladders
+-- By default, use 20 probability bins and 64 resonance ladders
 -- *********************************************************
 -- 
 purr /
 -21 -28 -29 / nendf, nin, nout
-$MAT $NTEMP $NSIG 20 64 1 0/ matd, ntemp, nsigz, nbin (20 bins), nladr, iprint, nunx
+$MAT $NTEMP $NSIG $NBIN $NLADR 0 0/ matd, ntemp, nsigz, nbin (20 bins), nladr, iprint (0=min), nunx
 $TEMPS /
 $SIGS /
 0/
