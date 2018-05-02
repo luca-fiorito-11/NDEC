@@ -429,13 +429,10 @@ INPUT="--
 -- Extract and convert neutron evaluated data
 -- *********************************************************
 -- 
--- Extract and convert neutron evaluated data
--- ***
--- ***
 moder /
-1 -21
-' Extract $MAT '/
-20 $MAT /
+1 -21 / nin, nout (nin=1 is a flag to select various materials from one or more input tapes)
+'Extract $MAT '/ tpid = tapeid for nout. 66 characters allowed
+20 $MAT / nin=input unit, matd=material on this tape to add to nout
 0/
 -- 
 -- *********************************************************
@@ -443,12 +440,12 @@ moder /
 -- *********************************************************
 -- 
 reconr /
--21 -22
-' PENDF file produced at NEA with NDEC '/
-$MAT 2 /  ncards = 2, two comment lines added to the new MF1
+-21 -22 / nendf, npendf
+'$ISO PENDF file, $NJOYVER, at NEA on $DATE'/
+$MAT 2 0/  ncards = 2, ngrids = 0
 0.005 0.0 0.005/ err tempr errmax (default = err*10)
-'Reconstructed $zsyma PENDF from $lib'/
-'Processed with $njoy_version, at NEA $sdate'/
+'$ISO PENDF file reconstructed at NEA'/
+'Processed with $NJOYVER on $DATE'/
 0/
 -- 
 -- *********************************************************
@@ -456,10 +453,10 @@ $MAT 2 /  ncards = 2, two comment lines added to the new MF1
 -- *********************************************************
 -- 
 broadr / Perform Doppler-broadening
--21 -22 -23
+-21 -22 -23/ nendf, nin, nout
 $MAT $NTEMP 0 0 0./  IMAT, #temps, restart?, bootstrap?, restart from?
 0.005 $THNMAX 0.005 / errthn thnmax errmax 
-$TEMPS / Description of temperatures
+$TEMPS / temp2 = final temperatures
 0/
 -- 
 -- *********************************************************
@@ -467,46 +464,41 @@ $TEMPS / Description of temperatures
 -- *********************************************************
 -- 
 unresr /
--21 -23 -24
-$MAT $NTEMP $NSIG 1
-$TEMPS
-$SIGS
+-21 -23 -24 / nendf, nin, nout
+$MAT $NTEMP $NSIG 0 / matd, ntemp, nsigz, iprint
+$TEMPS /  temp temperatures in Kelvin (including zero)
+$SIGS / sigz sigma zero values (including infinity)
 0 /
 -- 
 -- *********************************************************
--- Generate multigroup cross section data
--- *********************************************************
--- 
-groupr /
--21 -24 0 25/
-$MAT 1 0 2 6 $NTEMP $NSIG 1 /
-' GENDF file produced at NEA with NDEC '/
-$TEMPS
-$SIGS
-$NGROUP /
-$GROUPAS
-3/
-0/
-0/
--- 
--- *********************************************************
--- Add heating kerma and plot in tape61
+-- Add heating kerma and plot in tape60
+-- 302 = partial kema for elastic reaction
+-- 303 = partial kema for non-elastic reaction
+-- 304 = partial kema for inelastic reaction
+-- 318 = partial kema for fission reaction
+-- 402 = partial kema for radiactive capture
+-- 442 = total ev-barns
+-- 443 = total kinematic kerma (high limit)
 -- *********************************************************
 -- 
 heatr /
--21 -24 -25 60/
-$MAT 7 0 0 0 2 / (7) Add 7 partial KERMAS (302, 303, 318, 402, 442, 443)
+-21 -24 -25 60/ nendf, nin, nout, nplot
+$MAT 7 0 0 0 0 / matd, npk (7 partial kermas/dpa), nqa (number of user q values), ntemp, local, iprint (0 min, 1 max, 2 check), ed
 302 303 304 318 402 442 443/
 viewr /
 60 61 /
 -- 
 -- *********************************************************
 -- Add damage energy
+-- 444 = damage energy production values for total
+-- 445 = damage energy production values for elastic
+-- 446 = damage energy production values for inelastic
+-- 447 = damage energy production values for disappearance
 -- *********************************************************
 -- 
 heatr /
 -21 -25 -26 /
-$MAT 4 0 0 0 2 / (7) Add 4 partial DPA (444 445 446 447)
+$MAT 4 0 0 0 0 / matd, npk (4 partial kermas/dpa), nqa (number of user q values), ntemp, local, iprint (0 min, 1 max, 2 check), ed
 444 445 446 447/
 -- 
 -- *********************************************************
@@ -518,22 +510,53 @@ gaspr /
 -- 
 -- *********************************************************
 -- Add thermal scattering data for free-gas
+-- Add free-gas model in mt=221
+-- Use 10 eV as maximum energy for thermal treatment
 -- *********************************************************
 -- 
 thermr /
-0 -27 -28 /
-0 $MAT 20 $NTEMP 1 0 0 1 221 1 / Add free-gas model(mt=221), 20 equi-probable angles, MF6 law (E-mu-E'), output exteded
+0 -27 -28 / nendf, nin, nout
+0 $MAT 20 $NTEMP 1 0 0 1 221 0/ matde, matdp, nbin (20 equi-probable angles), ntemp, iin (1=free gas), icoh (0=none), iform (1 = E-mu-E'), natom, mtref, iprint
 $TEMPS /
-0.005 10.0 / tolerance emax (max energy for thermal treatment in eV)
+0.005 10.0 / tolerance, emax (max energy for thermal treatment in eV)
+-- 
+-- *********************************************************
+-- Generate multigroup cross section data
+-- Use the 238-group structure of SCALE.
+-- *********************************************************
+-- 
+groupr /
+-21 -28 0 93/ nendf, npendf, ngout1, ngout2
+$MAT 1 0 2 6 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt (2=constant), lord, mtemp, nsigz, iprint (0=min)
+'$ISO GENDF-238g, $NJOYVER, at NEA on $DATE'/
+$TEMPS /
+$SIGS /
+$NGROUP /
+$GROUPAS /
+3/
+3  221 Free Gas/ 
+3  251 mubar/ Average elastic scattering cosine  computed from File 4
+3  252 xi/ Continuous-slowing-down parameter  computed from File 4
+3  253 gamma/ Continuous-slowing-down parameter computed from File 4
+3  259 1v / Average inverse neutron velocity for group in s/m $(
+[[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
+[[ `countMFMT $SEED 1 455` -ne 0 ]] && echo "3 455 delayed_nubar/"
+[[ `countMFMT $SEED 1 456` -ne 0 ]] && echo "3 456 prompt_nubar/"
+[[ `countMFMT $SEED 5 455` -ne 0 ]] && echo "5 455 delayed_neutron_spectrum/")
+6/
+6 221 Free Gas /
+0/
+0/
 -- 
 -- *********************************************************
 -- Process Unresolved Resonance Region (URR) if any.
 -- Generate PTables for MCNP
+-- Use 20 probability bins and 64 resonance ladders
 -- *********************************************************
 -- 
 purr /
--21 -28 -29
-$MAT $NTEMP $NSIG 20 64 / 20 bins and 64 ladders for generating XS in URR
+-21 -28 -29 / nendf, nin, nout
+$MAT $NTEMP $NSIG 20 64 1 0/ matd, ntemp, nsigz, nbin (20 bins), nladr, iprint, nunx
 $TEMPS /
 $SIGS /
 0/
@@ -551,11 +574,11 @@ moder
 -- *********************************************************
 -- 
 acer /
--21 -29 0 91 92 /
-1 0 1 ${ACEXT-".03"} / iopt='1 fast data', iprint='0: min', itype, suff, nxtra=0
-'MAT=$MAT ACE file produced at NEA with NDEC '/
+-21 -29 0 91 92 / nendf, npend, ngend, nace, ndir
+1 0 1 ${ACEXT-".03"} 0 / iopt (1 fast data), iprint (0=min), itype, suff, nxtra
+'$ISO ACE file, $NJOYVER, at NEA on $DATE'/
 $MAT $TEMPS/ matd, tempd
-/ newfor='use new cumulative angle distributions, law 61, and outgoing particle distributions: yes', iopp='1 detailed photons: yes'
+1 1/ newfor (1=use new cumulative angle distributions, law 61, and outgoing particle distributions), iopp (1=detailed photons)
 /
 -- 
 -- *********************************************************
@@ -563,8 +586,8 @@ $MAT $TEMPS/ matd, tempd
 -- *********************************************************
 -- 
 acer / Check ACE files
-0 91 60 0 0 /
-7 0 1 -1 / iopt='7: read type 1 ace files to print or edit', iprint='1: max', itype, suff<0, nxtra=0
+0 91 60 0 0 / nendf, npend, ngend, nace, ndir
+7 0 1 -1 / iopt (7=read type 1 ace files to print or edit), iprint (0=min), itype, suff<0
 ''/
 viewr /
 60 62 /
@@ -572,7 +595,7 @@ $([[ -z $ERRORR ]] || echo -e "--
 $([[ `countMF $SEED 32` -ne 0 && `countMF $SEED 33` -eq 0 ]] && echo -e "-- 
 -- *********************************************************
 -- If covariance file MF32 is present without MF33, use 
--- ERRORR to add  dummy MF33 data for:
+-- ERRORR to add dummy MF33 data for:
 --  - total xs
 --  - elastic scattering xs
 --  - fission xs (only if MF3/MT18 is found)
@@ -597,42 +620,17 @@ moder
 41 -21" || echo "-- ")
 -- 
 -- *********************************************************
--- Generate  multigroup cross section data using SCALE 
--- 238-group energy grid
--- GENDF is saved in tape93
--- *********************************************************
--- 
-groupr /
--21 -29 0 93/ 
-$MAT 1 0 2 6 $NTEMP $NSIG 1 /
-' ERRORR file produced at  NEA with NDEC '/
-$TEMPS
-$SIGS
-$NGROUP /
-$GROUPAS
-3/
-3  221 Free Gas/
-3  251 mubar/
-3  252 xi/
-3  253 gamma/
-3  259 1/v /
-$([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/")
-$([[ `countMFMT $SEED 1 455` -ne 0 ]] && echo "3 455 delayed_nubar/")
-$([[ `countMFMT $SEED 1 456` -ne 0 ]] && echo "3 456 prompt_nubar/")
-$([[ `countMFMT $SEED 5 455` -ne 0 ]] && echo "5 455 delayed_neutron_spectrum/")
-6/
-6 221 Free Gas /
-0/
-0/
--- 
--- *********************************************************
--- Produce ERRORR file in tape94
+-- Produce ERRORR file in tape94.
+-- Covariances are processed on the SCALE 238-group structure 
+-- and printed in relative values.
+-- Use 1% sensitivity method for processing of resonance 
+-- parameter covariances.
 -- *********************************************************
 -- 
 errorr
--21 0 93 94 /
-$MAT 1 2 1 1 / matd, ign='1: arbitrary structure', iwt='2: constant', iprint='1 (default): max', irelco='1 (default): rel'
-1  $TEMPS / mprint='1 (default): max', tempin
+-21 0 93 94 0 / nendf, npend, ngout, nout, nin, nstan
+$MAT 1 2 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
+1  $TEMPS / mprint (0=min), tempin
 0 33 / iread, mfcov, irespr=1 
 $NGROUP /
 $GROUPAS
@@ -643,9 +641,9 @@ $([[ `countMF $SEED 32` -ne 0 || `countMF $SEED 33` -ne 0 ]] && echo -e "--
 -- *********************************************************
 -- 
 covr
-94 95  / nin, nout, nplot=0
+94 95 0/ nin, nout, nplot
 / matype=3 (covariances), ncase=1
-'$lib' / hlibid=\'up to 6 characters for identification'
+'LIB' / hlibid=\'up to 6 characters for identification'
 ' in BOXER format ' / hdescr='up to 21 characters of descriptive information'
 $MAT / mat, mt=0, mat1=0, mt1=0
 covr
@@ -791,6 +789,7 @@ fi
 {
 echo "<outputs>"
 mv "output" "${PREFIX}.output"; echo "<file id=\"njoy_output\" format=\"TEXT\">${PREFIX}.output</file>"
+echo "<file id=\"njoy_input\" format=\"TEXT\">${PREFIX}.input</file>"
 [[ -s "tape20" && ! -z $KEEPENDF ]] && { cp "$SEED" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
 [[ -s "tape90" ]] && { mv "tape90" "${PREFIX}.PENDF" ; echo "<file id=\"pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
 [[ -s "${PREFIX}.HENDF" ]] && { echo "<file id=\"hendf\" format=\"ENDF\">${PREFIX}.HENDF</file>" ;}
