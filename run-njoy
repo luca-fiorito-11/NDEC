@@ -112,6 +112,9 @@ KEYWORD ARGUMENTS
                             VAL1 to VALN are NSIG sigma0 values.
                             (default is [1E10 1E4 1E3 1E2 1E1 1E0])
 
+--toler  TOLER              Set the reconstruction tolerance used in RECONR, BROADR and THERMR.
+                            (default is TOLER=0.005)
+
 --iwt  IWT                  Set the weighting function for GROUPR and ERRORR.
                             (default is IWT=2)
                                2  : constant
@@ -325,6 +328,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    --toler)
+    TOLER="$2"
+    shift # past argument
+    shift # past value
+    ;;
     --sig0)
     NSIG="$2"
     SIGS=""
@@ -420,6 +428,11 @@ NTEMP=1								# Number of temperatures
 [[ -z $TEMPS ]] && TEMPS='293.6'				# String with temperature values to process
 printf "%-8s: %60s\n" "TEMP" "$TEMPS"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Set reconstruction tolerance.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[[ -z $TOLER ]] && TOLER='0.005'
+printf "%-8s: %60s\n" "TOLER" "$TOLER"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Set weighting function.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [[ -z $IWT ]] && IWT='2'
@@ -480,42 +493,46 @@ INPUT="--
 -- 
 moder /
 1 -21 / nin, nout (nin=1 is a flag to select various materials from one or more input tapes)
-'Extract $MAT '/ tpid = tapeid for nout. 66 characters allowed
+'Extract MAT=$MAT '/ tpid = tapeid for nout. 66 characters allowed
 20 $MAT / nin=input unit, matd=material on this tape to add to nout
 0/
 -- 
 -- *********************************************************
--- Reconstruct XS from resonance parameters
+-- Reconstruct XS from resonance parameters.
+-- By default use reconstruction tolerance ERR=0.5%
 -- *********************************************************
 -- 
 reconr /
 -21 -22 / nendf, npendf
 '$ISO PENDF file, $NJOYVER, at NEA on $DATE'/
 $MAT 2 0/  ncards = 2, ngrids = 0
-0.005 0.0 0.005/ err tempr errmax (default = err*10)
+$TOLER 0.0 $TOLER/ err, tempr, errmax
 '$ISO PENDF file reconstructed at NEA'/
 'Processed with $NJOYVER on $DATE'/
 0/
 -- 
 -- *********************************************************
--- Perform Doppler-broadening
+-- Perform Doppler-broadening.
+-- Set up the end of the RRR (E = $THNMAX eV) as the upper 
+-- limit for broadening and thinning.
+-- By default use reconstruction tolerance ERR=0.5%
 -- *********************************************************
 -- 
 broadr / Perform Doppler-broadening
 -21 -22 -23/ nendf, nin, nout
 $MAT $NTEMP 0 0 0./  IMAT, #temps, restart?, bootstrap?, restart from?
-0.005 $THNMAX 0.005 / errthn thnmax errmax 
+$TOLER $THNMAX $TOLER / errthn thnmax errmax 
 $TEMPS / temp2 = final temperatures
 0/
 -- 
 -- *********************************************************
--- 
+-- Reconstruct XS in the URR
 -- *********************************************************
 -- 
 unresr /
 -21 -23 -24 / nendf, nin, nout
 $MAT $NTEMP $NSIG 0 / matd, ntemp, nsigz, iprint
-$TEMPS /  temp temperatures in Kelvin (including zero)
+$TEMPS / temp temperatures in Kelvin (including zero)
 $SIGS / sigz sigma zero values (including infinity)
 0 /
 -- 
@@ -567,7 +584,7 @@ thermr /
 0 -27 -28 / nendf, nin, nout
 0 $MAT 20 $NTEMP 1 0 0 1 221 0/ matde, matdp, nbin (20 equi-probable angles), ntemp, iin (1=free gas), icoh (0=none), iform (1 = E-mu-E'), natom, mtref, iprint
 $TEMPS /
-0.005 10.0 / tolerance, emax (max energy for thermal treatment in eV)
+$TOLER 10.0 / tolerance, emax (max energy for thermal treatment in eV)
 -- 
 -- *********************************************************
 -- Generate multigroup cross section data
@@ -576,7 +593,7 @@ $TEMPS /
 -- 
 groupr /
 -21 -28 0 93/ nendf, npendf, ngout1, ngout2
-$MAT 1 0 ${IWT-"2"} 6 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt (2=constant), lord, mtemp, nsigz, iprint (0=min)
+$MAT 1 0 $IWT 6 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt (2=constant), lord, mtemp, nsigz, iprint (0=min)
 '$ISO GENDF-238g, $NJOYVER, at NEA on $DATE'/
 $TEMPS /
 $SIGS /
@@ -661,8 +678,8 @@ errorr
 999 / option to insert dummy file 33 data
 40 41 / input & output tapes
 1 / mt to insert,
-2 / continue mt list ...
-$([[ `countMFMT $SEED 3 18` -ne 0 ]] && echo "18/ add fission")
+2 / continue mt list ...$(
+[[ `countMFMT $SEED 3 18` -ne 0 ]] && echo "18/ add fission")
 102 /
 0 / terminate mt list with zero
 moder
@@ -678,9 +695,9 @@ moder
 -- 
 errorr
 -21 0 93 94 0 / nendf, npend, ngout, nout, nin, nstan
-$MAT 1 ${IWT-"2"} 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
+$MAT 1 $IWT 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
 1  $TEMPS / mprint (0=min), tempin
-0 33 / iread, mfcov, irespr=1 
+0 31 / iread, mfcov, irespr=1 
 $NGROUP /
 $GROUPAS
 $([[ `countMF $SEED 32` -ne 0 || `countMF $SEED 33` -ne 0 ]] && echo -e "-- 
