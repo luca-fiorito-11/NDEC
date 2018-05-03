@@ -645,43 +645,45 @@ $([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
 -- *********************************************************
 -- Calculate resonance integral.
 -- Use 1/E spectrum between 0.5 eV and 1.0E5 eV.
+-- XS are at zero K.
 -- *********************************************************
 -- 
-groupr
--21 -28 0 51/
-$MAT 1 0 3 0 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
-'$ISO GENDF IWT=1/E, $NJOYVER, at NEA on $DATE'/
-$TEMPS /
-$SIGS /
-1 /
-0.5 1e5 /
-3 1/
-3 2/
-3 18/
-3 102/
-0/
-0/
+-- groupr
+-- -21 -22 0 51/
+-- $MAT 1 0 3 0 1 1 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
+-- '$ISO GENDF IWT=1/E, $NJOYVER, at NEA on $DATE'/
+-- 0./
+-- 1e10 /
+-- 1 /
+-- 0.5 1e5 /
+-- 3 1/
+-- 3 2/
+-- 3 18/
+--3 102/
+-- 0/
+-- 0/
 --
 -- *********************************************************
 -- Calculate Maxwellian integral.
 -- Use thermal Maxwellian spectrum between 1.0E-5 eV and 10 eV.
+-- XS are at zero K.
 -- *********************************************************
 --
-groupr
--21 -28 0 52/
-$MAT 1 0 4 0 $NTEMP $NSIG 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
-'$ISO GENDF IWT=Maxwellian, $NJOYVER, at NEA on $DATE'/
-$TEMPS /
-$SIGS /
-1 /
-1e-5 10 /
-10 0.025 820.3E+03 1.4E+06 / eb, tb, ec, tc
-3 1/
-3 2/
-3 18/
-3 102/
-0/
-0/
+-- groupr
+-- -21 -22 0 52/
+-- $MAT 1 0 4 0 1 1 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
+-- '$ISO GENDF IWT=Maxwellian, $NJOYVER, at NEA on $DATE'/
+-- 0./
+-- 1e10 /
+-- 1 /
+-- 1e-5 10 /
+-- 2e7 0.0253 2e7 1.4E+06 / eb, tb, ec, tc
+-- 3 1/
+-- 3 2/
+-- 3 18/
+-- 3 102/
+-- 0/
+-- 0/
 -- 
 -- *********************************************************
 -- Process Unresolved Resonance Region (URR) if any.
@@ -794,30 +796,31 @@ viewr
 -- Calculate resonance integral uncertainty.
 -- *********************************************************
 -- 
-errorr
--21 -29 0 53 0 / nendf, npend, ngout, nout, nin, nstan
-$MAT 1 3 0 1 / matd, ign (1=arbitrary structure), iwt (3=1/E), iprint (0=min), irelco (1=rel)
-0 $TEMPS / mprint (0=min), tempin
-1 33 / iread, mfcov, irespr=1
-4/
-1 2 18 102/
-1/
-0.5 1e5/
+-- errorr
+-- -21 -22 0 53 0 / nendf, npend, ngout, nout, nin, nstan
+-- $MAT 1 3 0 1 / matd, ign (1=arbitrary structure), iwt (3=1/E), iprint (0=min), irelco (1=rel)
+-- 0 0./ mprint (0=min), tempin
+-- 1 33 / iread, mfcov, irespr=1
+-- 4/
+-- 1 2 18 102/
+-- 1/
+-- 0.5 1e5/
 --
 -- *********************************************************
 -- Calculate Maxwellian integral uncertainty.
 -- *********************************************************
 -- 
-errorr
--21 -29 0 54 0 / nendf, npend, ngout, nout, nin, nstan
-$MAT 1 4 0 1 / matd, ign (1=arbitrary structure), iwt (Maxwellian), iprint (0=min), irelco (1=rel)
-0 $TEMPS / mprint (0=min), tempin
-1 33 / iread, mfcov, irespr=1
-4/
-1 2 18 102/
-1/
-1e-5 10/
-10 0.025 820.3E+03 1.4E+06 / eb, tb, ec, tc")
+-- errorr
+-- -21 -22 0 54 0 / nendf, npend, ngout, nout, nin, nstan
+-- $MAT 1 4 0 1 / matd, ign (1=arbitrary structure), iwt (Maxwellian), iprint (0=min), irelco (1=rel)
+-- 0 0./ mprint (0=min), tempin
+-- 1 33 / iread, mfcov, irespr=1
+-- 4/
+-- 1 2 18 102/
+-- 1/
+-- 1e-5 10/
+-- 2e7 0.0253 2e7 1.4E+06 / eb, tb, ec, tc"
+)
 $([[ ! -z $ERRORR && `countMF $SEED 31` -ne 0 ]] && 
 echo -e "-- 
 -- *********************************************************
@@ -906,7 +909,6 @@ stop"
 mkdir -p "$WDIR"
 ln -sf "$SEED" "tape20"							# Link seed to tape20
 echo -e "$INPUT" > "${PREFIX}.input"					# Write input file
-exit
 cat ${PREFIX}.input | timeout -s SIGABRT "$TIMEOUT" "$NJOY" 2>&1 |tee "${PREFIX}.stderr" # Actual NJOY run
 EXIT_STATUS=${PIPESTATUS[1]}
 FAIL_MSG="NJOY FAILED TO RUN WITH EXIT STATUS $EXIT_STATUS"
@@ -1048,6 +1050,10 @@ echo "<file id=\"njoy_input\" format=\"TEXT\">${PREFIX}.input</file>"
 [[ -s "tape65" ]] && { ps2pdf "tape65" "${PREFIX}_BOXER_MF35.pdf"; echo "<file id=\"boxer35_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF35.pdf</file>" ;}
 [[ -s "tape61" ]] && { ps2pdf "tape61" "${PREFIX}_BOXER_MF31.pdf"; echo "<file id=\"boxer31_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF31.pdf</file>" ;}
 #INTEGRALS
+#[[ -s "tape51" ]] && { mv "tape51" "${PREFIX}.RESINT"; echo "<file id=\"resint\" format=\"GENDF\">${PREFIX}.RESINT</file>" ;}
+#[[ -s "tape52" ]] && { mv "tape52" "${PREFIX}.MAXWINT"; echo "<file id=\"maxwint\" format=\"GENDF\">${PREFIX}.MAXWINT</file>" ;}
+#[[ -s "tape53" ]] && { mv "tape53" "${PREFIX}.RESINT_COV"; echo "<file id=\"resint_cov\" format=\"ERRORR\">${PREFIX}.RESINT_COV</file>" ;}
+#[[ -s "tape54" ]] && { mv "tape54" "${PREFIX}.MAXWINT_COV"; echo "<file id=\"maxwint_cov\" format=\"ERRORR\">${PREFIX}.MAXWINT_COV</file>" ;}
 echo "</outputs>"
 } > "${PREFIX}-outputs.xml"
 rm -f "tape"*
