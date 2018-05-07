@@ -650,49 +650,6 @@ $([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
 0/
 -- 
 -- *********************************************************
--- Calculate resonance integral.
--- Use 1/E spectrum between 0.5 eV and 1.0E5 eV.
--- XS are at zero K.
--- *********************************************************
--- 
--- groupr
--- -21 -22 0 51/
--- $MAT 1 0 3 0 1 1 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
--- '$ISO GENDF IWT=1/E, $NJOYVER, at NEA on $DATE'/
--- 0./
--- 1e10 /
--- 1 /
--- 0.5 1e5 /
--- 3 1/
--- 3 2/
--- 3 18/
--- 3 102/
--- 0/
--- 0/
---
--- *********************************************************
--- Calculate Maxwellian integral.
--- Use thermal Maxwellian spectrum between 1.0E-5 eV and 10 eV.
--- XS are at zero K.
--- *********************************************************
---
--- groupr
--- -21 -22 0 52/
--- $MAT 1 0 4 0 1 1 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
--- '$ISO GENDF IWT=Maxwellian, $NJOYVER, at NEA on $DATE'/
--- 0./
--- 1e10 /
--- 1 /
--- 1e-5 10 /
--- 2e7 0.0253 2e7 1.4E+06 / eb, tb, ec, tc
--- 3 1/
--- 3 2/
--- 3 18/
--- 3 102/
--- 0/
--- 0/
--- 
--- *********************************************************
 -- Process Unresolved Resonance Region (URR) if any.
 -- Generate PTables for MCNP
 -- By default, use 20 probability bins and 64 resonance ladders
@@ -797,36 +754,7 @@ covr
 1 1 0 1 1 / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
 $MAT / mat, mt=0, mat1=0, mt1=0
 viewr
-45 63
---
--- *********************************************************
--- Calculate resonance integral uncertainty.
--- *********************************************************
--- 
--- errorr
--- -21 -22 0 53 0 / nendf, npend, ngout, nout, nin, nstan
--- $MAT 1 3 0 1 / matd, ign (1=arbitrary structure), iwt (3=1/E), iprint (0=min), irelco (1=rel)
--- 0 0./ mprint (0=min), tempin
--- 1 33 / iread, mfcov, irespr=1
--- 4/
--- 1 2 18 102/
--- 1/
--- 0.5 1e5/
---
--- *********************************************************
--- Calculate Maxwellian integral uncertainty.
--- *********************************************************
--- 
--- errorr
--- -21 -22 0 54 0 / nendf, npend, ngout, nout, nin, nstan
--- $MAT 1 4 0 1 / matd, ign (1=arbitrary structure), iwt (Maxwellian), iprint (0=min), irelco (1=rel)
--- 0 0./ mprint (0=min), tempin
--- 1 33 / iread, mfcov, irespr=1
--- 4/
--- 1 2 18 102/
--- 1/
--- 1e-5 10/
--- 2e7 0.0253 2e7 1.4E+06 / eb, tb, ec, tc"
+45 63"
 )
 $([[ ! -z $ERRORR && `countMF $SEED 31` -ne 0 ]] && 
 echo -e "-- 
@@ -865,6 +793,43 @@ covr
 $MAT / mat, mt=0, mat1=0, mt1=0
 viewr
 45 61")
+$([[ ! -z $ERRORR && `countMF $SEED 34` -ne 0 ]] && 
+echo -e "-- 
+-- *********************************************************
+-- Produce ERRORR for MF34 (MF3 MT251) file in tape84.
+-- Covariances are processed on the SCALE 238-group structure 
+-- and printed in relative values.
+-- Use 1% sensitivity method for processing of resonance 
+-- parameter covariances.
+-- *********************************************************
+-- 
+errorr
+-21 0 93 84 0 / nendf, npend, ngout, nout, nin, nstan
+$MAT 1 $IWT 0 1 / matd, ign (1=arbitrary structure), iwt (2=constant), iprint (0=min), irelco (1=rel)
+0 $TEMPS / mprint (0=min), tempin
+0 34 / iread, mfcov, irespr=1 
+$NGROUP /
+$GROUPAS
+-- 
+-- *********************************************************
+-- Produce BOXER file in tape74
+-- PS file is in tape 64
+-- *********************************************************
+-- 
+covr
+84 74 0/ nin, nout, nplot
+/ matype=3 (covariances), ncase=1
+'LIB' / hlibid='up to 6 characters for identification'
+'in BOXER format ' / hdescr='up to 21 characters of descriptive information'
+$MAT / mat, mt=0, mat1=0, mt1=0
+covr
+84 0 45 / nin, nout, nplot
+1  / icolor
+0. / epmin
+1  / irelco, ncase=1, noleg=0, nstart=1, ndiv=1
+$MAT / mat, mt=0, mat1=0, mt1=0
+viewr
+45 64")
 $([[ ! -z $ERRORR && `countMF $SEED 35` -ne 0 ]] && 
 echo -e "-- 
 -- *********************************************************
@@ -904,6 +869,77 @@ viewr
 45 65")
 stop"
 
+#--
+#-- *********************************************************
+#-- Calculate resonance integral.
+#-- Use 1/E spectrum between 0.5 eV and 1.0E5 eV.
+#-- XS are at zero K.
+#-- *********************************************************
+#-- groupr
+#-- -21 -22 0 51/
+#-- $MAT 1 0 3 0 1 1 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
+#-- '$ISO GENDF IWT=1/E, $NJOYVER, at NEA on $DATE'/
+#-- 0./
+#-- 1e10 /
+#-- 1 /
+#-- 0.5 1e5 /
+#-- 3 1/
+#-- 3 2/
+#-- 3 18/
+#-- 3 102/
+#-- 0/
+#-- 0/
+#--
+#-- *********************************************************
+#-- Calculate Maxwellian integral.
+#-- Use thermal Maxwellian spectrum between 1.0E-5 eV and 10 eV.
+#-- XS are at zero K.
+#-- *********************************************************
+#--
+#-- groupr
+#-- -21 -22 0 52/
+#-- $MAT 1 0 4 0 1 1 0 / matb, ign (1=read in structure), igg, iwt, lord, mtemp, nsigz, iprint (0=min)
+#-- '$ISO GENDF IWT=Maxwellian, $NJOYVER, at NEA on $DATE'/
+#-- 0./
+#-- 1e10 /
+#-- 1 /
+#-- 1e-5 10 /
+#-- 2e7 0.0253 2e7 1.4E+06 / eb, tb, ec, tc
+#-- 3 1/
+#-- 3 2/
+#-- 3 18/
+#-- 3 102/
+#-- 0/
+#-- 0/
+#-- 
+#-- *********************************************************
+#-- Calculate resonance integral uncertainty.
+#-- *********************************************************
+#-- 
+#-- errorr
+#-- -21 -22 0 53 0 / nendf, npend, ngout, nout, nin, nstan
+#-- $MAT 1 3 0 1 / matd, ign (1=arbitrary structure), iwt (3=1/E), iprint (0=min), irelco (1=rel)
+#-- 0 0./ mprint (0=min), tempin
+#-- 1 33 / iread, mfcov, irespr=1
+#-- 4/
+#-- 1 2 18 102/
+#-- 1/
+#-- 0.5 1e5/
+#--
+#-- *********************************************************
+#-- Calculate Maxwellian integral uncertainty.
+#-- *********************************************************
+#-- 
+#-- errorr
+#-- -21 -22 0 54 0 / nendf, npend, ngout, nout, nin, nstan
+#-- $MAT 1 4 0 1 / matd, ign (1=arbitrary structure), iwt (Maxwellian), iprint (0=min), irelco (1=rel)
+#-- 0 0./ mprint (0=min), tempin
+#-- 1 33 / iread, mfcov, irespr=1
+#-- 4/
+#-- 1 2 18 102/
+#-- 1/
+#-- 1e-5 10/
+#-- 2e7 0.0253 2e7 1.4E+06 / eb, tb, ec, tc"
 
 
 #######################################################################
@@ -1049,14 +1085,17 @@ echo "<file id=\"njoy_input\" format=\"TEXT\">${PREFIX}.input</file>"
 [[ -s "tape83" ]] && { mv "tape83" "${PREFIX}.ERRORR_MF33"; echo "<file id=\"errorr33\" format=\"ERRORR\">${PREFIX}.ERRORR_MF33</file>" ;}
 [[ -s "tape85" ]] && { mv "tape85" "${PREFIX}.ERRORR_MF35"; echo "<file id=\"errorr35\" format=\"ERRORR\">${PREFIX}.ERRORR_MF35</file>" ;}
 [[ -s "tape81" ]] && { mv "tape81" "${PREFIX}.ERRORR_MF31"; echo "<file id=\"errorr31\" format=\"ERRORR\">${PREFIX}.ERRORR_MF31</file>" ;}
+[[ -s "tape84" ]] && { mv "tape84" "${PREFIX}.ERRORR_MF34"; echo "<file id=\"errorr34\" format=\"ERRORR\">${PREFIX}.ERRORR_MF34</file>" ;}
 # BOXER FILES
 [[ -s "tape73" ]] && { mv "tape73" "${PREFIX}.BOXER_MF33"; echo "<file id=\"boxer33\" format=\"BOXER\">${PREFIX}.BOXER_MF33</file>" ;}
 [[ -s "tape75" ]] && { mv "tape75" "${PREFIX}.BOXER_MF35"; echo "<file id=\"boxer35\" format=\"BOXER\">${PREFIX}.BOXER_MF35</file>" ;}
 [[ -s "tape71" ]] && { mv "tape71" "${PREFIX}.BOXER_MF31"; echo "<file id=\"boxer31\" format=\"BOXER\">${PREFIX}.BOXER_MF31</file>" ;}
+[[ -s "tape74" ]] && { mv "tape74" "${PREFIX}.BOXER_MF34"; echo "<file id=\"boxer34\" format=\"BOXER\">${PREFIX}.BOXER_MF34</file>" ;}
 # BOXER PDF FILES
 [[ -s "tape63" ]] && { ps2pdf "tape63" "${PREFIX}_BOXER_MF33.pdf"; echo "<file id=\"boxer33_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF33.pdf</file>" ;}
 [[ -s "tape65" ]] && { ps2pdf "tape65" "${PREFIX}_BOXER_MF35.pdf"; echo "<file id=\"boxer35_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF35.pdf</file>" ;}
 [[ -s "tape61" ]] && { ps2pdf "tape61" "${PREFIX}_BOXER_MF31.pdf"; echo "<file id=\"boxer31_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF31.pdf</file>" ;}
+[[ -s "tape64" ]] && { ps2pdf "tape64" "${PREFIX}_BOXER_MF34.pdf"; echo "<file id=\"boxer34_pdf\" format=\"PDF\">${PREFIX}_BOXER_MF34.pdf</file>" ;}
 #INTEGRALS
 #[[ -s "tape51" ]] && { mv "tape51" "${PREFIX}.RESINT"; echo "<file id=\"resint\" format=\"GENDF\">${PREFIX}.RESINT</file>" ;}
 #[[ -s "tape52" ]] && { mv "tape52" "${PREFIX}.MAXWINT"; echo "<file id=\"maxwint\" format=\"GENDF\">${PREFIX}.MAXWINT</file>" ;}
