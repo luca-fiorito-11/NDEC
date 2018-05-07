@@ -8,5 +8,5 @@ mkdir -p "$DIR"
 (
 cd "$DIR" &&
 "${SCRIPTDIR}/run-njoy" "${FILE}"  --covr  --messages  --prefix "${FILENAME%.*}" \
-                                   --hendf  --keependf 
+                                   --keependf --toler 0.1  --iwt 6
 )

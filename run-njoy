@@ -539,6 +539,13 @@ $TOLER 0.0 $TOLER/ err, tempr, errmax
 0/
 -- 
 -- *********************************************************
+-- This is the PENDF at 0K.
+-- *********************************************************
+-- 
+moder
+-22 39 /
+-- 
+-- *********************************************************
 -- Perform Doppler-broadening.
 -- Set up the end of the RRR (E = $THNMAX eV) as the upper 
 -- limit for broadening and thinning.
@@ -579,7 +586,7 @@ heatr /
 $MAT 7 0 0 0 0 / matd, npk (7 partial kermas/dpa), nqa (number of user q values), ntemp, local, iprint (0 min, 1 max, 2 check), ed
 302 303 304 318 402 442 443/
 viewr /
-60 61 /
+60 64 /
 -- 
 -- *********************************************************
 -- Add damage energy
@@ -659,7 +666,7 @@ $([[ `countMFMT $SEED 1 452` -ne 0 ]] && echo "3 452 total_nubar/"
 -- 3 1/
 -- 3 2/
 -- 3 18/
---3 102/
+-- 3 102/
 -- 0/
 -- 0/
 --
@@ -1030,6 +1037,7 @@ echo "<outputs>"
 mv "output" "${PREFIX}.output"; echo "<file id=\"njoy_output\" format=\"TEXT\">${PREFIX}.output</file>"
 echo "<file id=\"njoy_input\" format=\"TEXT\">${PREFIX}.input</file>"
 [[ -s "tape50" && ! -z $KEEPENDF ]] && { cp "tape50" "${PREFIX}.ENDF" ; echo "<file id=\"endf\" format=\"ENDF\">${PREFIX}.ENDF</file>" ;}
+[[ -s "tape39" ]] && { mv "tape39" "${PREFIX}.0K_PENDF" ; echo "<file id=\"0K_pendf\" format=\"ENDF\">${PREFIX}.0K_PENDF</file>" ;}
 [[ -s "tape90" ]] && { mv "tape90" "${PREFIX}.PENDF" ; echo "<file id=\"pendf\" format=\"ENDF\">${PREFIX}.PENDF</file>" ;}
 [[ -s "${PREFIX}.HENDF" ]] && { echo "<file id=\"hendf\" format=\"ENDF\">${PREFIX}.HENDF</file>" ;}
 [[ -s "tape91" ]] && { mv "tape91" "${PREFIX}.ACE"; echo "<file id=\"ace\" format=\"ACE\">${PREFIX}.ACE</file>" ;}
