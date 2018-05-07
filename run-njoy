@@ -953,6 +953,7 @@ mkdir -p "$WDIR"
 ln -sf "$SEED" "tape20"							# Link seed to tape20
 echo -e "$INPUT" > "${PREFIX}.input"					# Write input file
 cat ${PREFIX}.input | timeout -s SIGABRT "$TIMEOUT" "$NJOY" 2>&1 |tee "${PREFIX}.stderr" # Actual NJOY run
+exit
 EXIT_STATUS=${PIPESTATUS[1]}
 FAIL_MSG="NJOY FAILED TO RUN WITH EXIT STATUS $EXIT_STATUS"
 [[ $EXIT_STATUS -ne "0" && $EXIT_STATUS -ne "77" ]] && { >&2 echo "$FAIL_MSG"; echo "$FAIL_MSG" >> "${PREFIX}.stderr"; }
